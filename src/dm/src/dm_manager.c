@@ -57,6 +57,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define IGNORE_SIGMASK ((1 << SIGTERM) | (1 << SIGINT) | (1 << SIGUSR1) | (1 << SIGUSR2))
 
+/* Timeouts for restarting a manager.
+ * TM_OUT_SLOW is used when a process fails to start
+ * TM_OUT_FAST is the default timeout for a crash or a regular process exit and can
+ * be overriden in the table Node_Services.other_config["restart_delay"]
+ */
 #define TM_OUT_FAST     (5)
 #define TM_OUT_SLOW     (60)
 
@@ -823,10 +828,10 @@ void dm_manager_child_fn(struct ev_loop *loop, ev_child *w, int revents)
         if (WEXITSTATUS(w->rstatus) == 0)
         {
             LOG(NOTICE, "Restarting %s in %d seconds.",
-                        dm->dm_name, TM_OUT_FAST);
+                        dm->dm_name, delay);
 
             /* on exit try to restart it relatively fast */
-            dm_manager_restart(dm, TM_OUT_FAST);
+            dm_manager_restart(dm, delay);
             return;
         }
         else
@@ -846,9 +851,9 @@ void dm_manager_child_fn(struct ev_loop *loop, ev_child *w, int revents)
         LOG(NOTICE, "Manager '%s' terminated, signal: %d, restarting in %d seconds.",
                     dm->dm_name,
                     WTERMSIG(w->rstatus),
-                    TM_OUT_FAST);
+                    delay);
 
-        dm_manager_restart(dm, TM_OUT_FAST);
+        dm_manager_restart(dm, delay);
         return;
     }
 
