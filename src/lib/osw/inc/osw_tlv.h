@@ -53,7 +53,7 @@ enum osw_tlv_type {
     OSW_TLV_STRING,
     OSW_TLV_NESTED,
     OSW_TLV_HWADDR,
-    // OSW_TLV_U64
+    OSW_TLV_U64,
     // OSW_TLV_S8
     //OSW_TLV_TYPES,
 };
@@ -133,13 +133,16 @@ const struct osw_tlv_hdr *osw_tlv_next(const struct osw_tlv_hdr *hdr, size_t *re
 bool osw_tlv_ok(const struct osw_tlv_hdr *hdr, size_t remaining);
 
 #define osw_tlv_get_u32(hdr) (*(const uint32_t *)osw_tlv_get_data(hdr))
+#define osw_tlv_get_u64(hdr) (*(const uint64_t *)osw_tlv_get_data(hdr))
 #define osw_tlv_get_float(hdr) (*(const float *)osw_tlv_get_data(hdr))
 #define osw_tlv_get_string(hdr) ((const char *)osw_tlv_get_data(hdr))
 #define osw_tlv_get_hwaddr(addr, hdr) memcpy((addr)->octet, osw_tlv_get_data(hdr), sizeof((addr)->octet))
 
 #define osw_tlv_put_var(tlv, id, type, ctype, x) memcpy(osw_tlv_put(tlv, id, type, sizeof(ctype)), (ctype[]){x}, sizeof(ctype))
 #define osw_tlv_put_u32(tlv, id, x) osw_tlv_put_var(tlv, id, OSW_TLV_U32, uint32_t, x)
+#define osw_tlv_put_u64(tlv, id, x) osw_tlv_put_var(tlv, id, OSW_TLV_U64, uint64_t, x)
 #define osw_tlv_put_u32_delta(tlv, id, x) osw_tlv_set_flags(osw_tlv_put_u32(tlv, id, x), OSW_TLV_F_DELTA)
+#define osw_tlv_put_u64_delta(tlv, id, x) osw_tlv_set_flags(osw_tlv_put_u64(tlv, id, x), OSW_TLV_F_DELTA)
 #define osw_tlv_put_float(tlv, id, x) osw_tlv_put_var(tlv, id, OSW_TLV_FLOAT, float, x)
 #define osw_tlv_put_float_delta(tlv, id, x) osw_tlv_set_flags(osw_tlv_put_float(tlv, id, x), OSW_TLV_F_DELTA)
 #define osw_tlv_put_data(tlv, id, type, x, s) memcpy(osw_tlv_put(tlv, id, type, (s)), (x), (s))

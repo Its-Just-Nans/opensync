@@ -29,7 +29,7 @@
 ###############################################################################
 UNIT_NAME := fsm_dhcp_relay
 
-UNIT_DISABLE := $(if $(CONFIG_MANAGER_FSM),n,y)
+UNIT_DISABLE := $(if $(CONFIG_LIB_LEGACY_DHCP_RELAY),n,y)
 
 ifeq ($(CONFIG_FSM_NO_DSO),y)
 	UNIT_TYPE := LIB

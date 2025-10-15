@@ -6,10 +6,16 @@ menuconfig WE_DPI_ENGINE
         Enable WE DPI engine support for FSM
 
     config WE_AGENT_BINARY
+        depends on WE_DPI_ENGINE
         bool "Install WE Agent binary"
         default y
 
         help
             Install the WE Agent binary
 
-            
+    config WE_RELEASE_BUILD
+        depends on WE_DPI_ENGINE
+        bool "WE DPI library release mode"
+        default y
+        help
+            The WE plugin will be built in release mode

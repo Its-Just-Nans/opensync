@@ -300,6 +300,7 @@ void osw_wnm_sta_observer_drop(osw_wnm_sta_observer_t *obs)
     if (WARN_ON(obs->sta == NULL)) return;
 
     osw_wnm_sta_detach_observer(obs);
+    FREE(obs);
 }
 
 bool osw_wnm_sta_is_mbo_capable(const osw_wnm_sta_t *sta)

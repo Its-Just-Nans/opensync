@@ -192,14 +192,14 @@ osw_hostap_conf_auth_algs_from_osw(const struct osw_wpa *wpa)
 char*
 osw_hostap_conf_wpa_key_mgmt_from_osw(const struct osw_wpa *wpa)
 {
+    if (wpa == NULL)
+        return NULL;
+
     size_t len = OSW_HOSTAP_CONF_WPA_KEY_MGMT_MAX_LEN;
     size_t *plen = &len;
     char *wpa_key_mgmt = CALLOC(len, sizeof(char));
     char *cpy_wpa_key_mgmt = wpa_key_mgmt;
     char **pbuf = &wpa_key_mgmt;
-
-    if (wpa == NULL)
-        return NULL;
 
     if (wpa->akm_psk)            csnprintf(pbuf, plen, "WPA-PSK ");
     if (wpa->akm_psk_sha256)     csnprintf(pbuf, plen, "WPA-PSK-SHA256 ");
@@ -222,14 +222,14 @@ osw_hostap_conf_wpa_key_mgmt_from_osw(const struct osw_wpa *wpa)
 char *
 osw_hostap_conf_pairwise_from_osw(const struct osw_wpa *wpa)
 {
+    if (wpa == NULL)
+        return NULL;
+
     size_t len = 32;
     size_t *plen = &len;
     char *pairwise = CALLOC(len, sizeof(char));
     char *cpy_pairwise = pairwise;
     char **pbuf = &cpy_pairwise;
-
-    if (wpa == NULL)
-        return NULL;
 
     if (wpa->pairwise_tkip) csnprintf(pbuf, plen, "TKIP ");
     if (wpa->pairwise_ccmp) csnprintf(pbuf, plen, "CCMP ");
@@ -243,14 +243,14 @@ osw_hostap_conf_pairwise_from_osw(const struct osw_wpa *wpa)
 char *
 osw_hostap_conf_proto_from_osw(const struct osw_wpa *wpa)
 {
+    if (wpa == NULL)
+        return NULL;
+
     size_t len = 16;
     size_t *plen = &len;
     char *proto = CALLOC(len, sizeof(char));
     char *cpy_proto = proto;
     char **pbuf = &cpy_proto;
-
-    if (wpa == NULL)
-        return NULL;
 
     if (wpa->wpa) csnprintf(pbuf, plen, "WPA ");
     if (wpa->rsn) csnprintf(pbuf, plen, "RSN ");

@@ -73,7 +73,7 @@ struct osw_sta_idle_observer
     osw_sta_assoc_observer_t *sta_assoc_obs;
     struct osw_timer ageout;
     struct osw_timer collect;
-    uint32_t bytes;
+    uint64_t bytes;
 };
 
 static void osw_sta_idle_init(osw_sta_idle_t *m)
@@ -149,7 +149,7 @@ static void osw_sta_idle_observer_collect_cb(struct osw_timer *t)
     obs->bytes = 0;
 }
 
-static void osw_sta_idle_observer_feed(osw_sta_idle_observer_t *obs, uint32_t bytes)
+static void osw_sta_idle_observer_feed(osw_sta_idle_observer_t *obs, uint64_t bytes)
 {
     obs->bytes += bytes;
     osw_sta_idle_observer_check(obs);
@@ -157,7 +157,7 @@ static void osw_sta_idle_observer_feed(osw_sta_idle_observer_t *obs, uint32_t by
     osw_sta_idle_observer_arm_collect(obs);
 }
 
-static void osw_sta_idle_stats_report_bytes(osw_sta_idle_t *m, const struct osw_hwaddr *sta_addr, const uint32_t bytes)
+static void osw_sta_idle_stats_report_bytes(osw_sta_idle_t *m, const struct osw_hwaddr *sta_addr, const uint64_t bytes)
 {
     osw_sta_idle_observer_t *obs;
     ds_tree_foreach (&m->obs, obs)
@@ -187,15 +187,16 @@ static void osw_sta_idle_stats_report_cb(
     osw_tlv_parse(data->data, data->used, stats_defs->tpolicy, tb, OSW_STATS_STA_MAX__);
 
     const struct osw_tlv_hdr *sta_addr_t = tb[OSW_STATS_STA_MAC_ADDRESS];
-    const struct osw_tlv_hdr *tx_bytes_t = tb[OSW_STATS_STA_TX_BYTES];
-    const struct osw_tlv_hdr *rx_bytes_t = tb[OSW_STATS_STA_RX_BYTES];
+    const struct osw_tlv_hdr *tx_bytes_t = tb[OSW_STATS_STA_TX_BYTES_64];
+    const struct osw_tlv_hdr *rx_bytes_t = tb[OSW_STATS_STA_RX_BYTES_64];
 
     if (sta_addr_t == NULL) return;
 
     const struct osw_hwaddr *sta_addr = osw_tlv_get_data(sta_addr_t);
-    const uint32_t tx_bytes = tx_bytes_t ? osw_tlv_get_u32(tx_bytes_t) : 0;
-    const uint32_t rx_bytes = rx_bytes_t ? osw_tlv_get_u32(rx_bytes_t) : 0;
-    const uint32_t bytes = tx_bytes + rx_bytes;
+
+    const uint64_t tx_bytes = tx_bytes_t ? osw_tlv_get_u64(tx_bytes_t) : 0;
+    const uint64_t rx_bytes = rx_bytes_t ? osw_tlv_get_u64(rx_bytes_t) : 0;
+    const uint64_t bytes = tx_bytes + rx_bytes;
 
     osw_sta_idle_stats_report_bytes(m, sta_addr, bytes);
 }

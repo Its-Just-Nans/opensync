@@ -145,6 +145,13 @@ bool objmfs_install(char *path, char *name, char *version, install_cb_t install_
     }
 
     fd = fopen(tpath, "r");
+    if (IS_NULL_PTR(fd))
+    {
+        LOG(ERR, "%s: Unable to open version file %s: %s", __func__, tpath, strerror(errno));
+        ret = false;
+        goto cleanup;
+    }
+
     while ((read = getline(&line, &len, fd)) != -1)
     {
         char *pos;

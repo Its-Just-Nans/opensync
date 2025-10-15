@@ -50,6 +50,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include <osw_types.h>
+#include <osw_drv.h>
 #include <ds_dlist.h>
 
 struct ow_conf_observer;

@@ -124,9 +124,21 @@ osw_stats_type_u32_add_cb(void *d, const void *s)
 }
 
 static void
+osw_stats_type_u64_add_cb(void *d, const void *s)
+{
+    *(uint64_t *)d = *(uint64_t *)d + *(uint64_t *)s;
+}
+
+static void
 osw_stats_type_u32_sub_cb(void *d, const void *s)
 {
     *(uint32_t *)d = *(uint32_t *)d - *(uint32_t *)s;
+}
+
+static void
+osw_stats_type_u64_sub_cb(void *d, const void *s)
+{
+    *(uint64_t *)d = *(uint64_t *)d - *(uint64_t *)s;
 }
 
 static bool
@@ -134,6 +146,13 @@ osw_stats_type_u32_ufl_cb(const void *a, const void *b)
 {
     const uint32_t d = *(uint32_t *)a - *(uint32_t *)b;
     return d > (UINT32_MAX / 2);
+}
+
+static bool
+osw_stats_type_u64_ufl_cb(const void *a, const void *b)
+{
+    const uint64_t d = *(uint64_t *)a - *(uint64_t *)b;
+    return d > (UINT64_MAX / 2);
 }
 
 static void
@@ -153,6 +172,7 @@ osw_tlv_merge_add_fn_lookup(const enum osw_tlv_type t)
 {
     switch (t) {
         case OSW_TLV_U32: return osw_stats_type_u32_add_cb;
+        case OSW_TLV_U64: return osw_stats_type_u64_add_cb;
         case OSW_TLV_FLOAT: return osw_stats_type_float_add_cb;
         case OSW_TLV_HWADDR: return NULL;
         case OSW_TLV_STRING: return NULL;
@@ -168,6 +188,7 @@ osw_tlv_merge_sub_fn_lookup(const enum osw_tlv_type t)
 {
     switch (t) {
         case OSW_TLV_U32: return osw_stats_type_u32_sub_cb;
+        case OSW_TLV_U64: return osw_stats_type_u64_sub_cb;
         case OSW_TLV_FLOAT: return osw_stats_type_float_sub_cb;
         case OSW_TLV_HWADDR: return NULL;
         case OSW_TLV_STRING: return NULL;
@@ -183,6 +204,7 @@ osw_tlv_merge_ufl_fn_lookup(const enum osw_tlv_type t)
 {
     switch (t) {
         case OSW_TLV_U32: return osw_stats_type_u32_ufl_cb;
+        case OSW_TLV_U64: return osw_stats_type_u64_ufl_cb;
         case OSW_TLV_FLOAT: return NULL;
         case OSW_TLV_HWADDR: return NULL;
         case OSW_TLV_STRING: return NULL;

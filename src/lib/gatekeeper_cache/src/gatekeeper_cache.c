@@ -951,7 +951,7 @@ gkc_add_flow_entry(struct gkc_ip_flow_interface *entry)
     }
     else
     {
-        pdevice->blocked[attr_type]--;
+        pdevice->blocked[attr_type]++;
     }
 
     return true;
@@ -1089,11 +1089,11 @@ gkc_lookup_redirect_entry(struct gk_attr_cache_interface *req, struct attr_cache
     int type;
 
     type = req->attribute_type;
-    /* lookup redirect entries only for attr type FQDN, HOST and SNI */
+    /* lookup redirect entries only for attr type FQDN, HOST and SNI. */
     perform_lookup = (type == GK_CACHE_REQ_TYPE_FQDN || type == GK_CACHE_REQ_TYPE_HOST || type == GK_CACHE_REQ_TYPE_SNI);
     if (!perform_lookup) return;
 
-    if (req->fqdn_redirect == NULL || attr_entry->fqdn_redirect == NULL) return;
+    if (IS_NULL_PTR(req->fqdn_redirect) || IS_NULL_PTR(attr_entry->fqdn_redirect)) return;
 
     if (attr_entry->fqdn_redirect->redirect_cname)
     {

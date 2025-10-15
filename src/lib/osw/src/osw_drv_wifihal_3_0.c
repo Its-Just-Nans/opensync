@@ -2435,8 +2435,8 @@ osw_drv_fill_tlv_sta_stats(const struct wifihal_3_0_priv *priv,
             osw_tlv_put_hwaddr(t, OSW_STATS_STA_MAC_ADDRESS, &addr);
 
             osw_tlv_put_u32(t, OSW_STATS_STA_SNR_DB, snr);
-            osw_tlv_put_u32(t, OSW_STATS_STA_TX_BYTES, tx_bytes);
-            osw_tlv_put_u32(t, OSW_STATS_STA_RX_BYTES, rx_bytes);
+            osw_tlv_put_u64(t, OSW_STATS_STA_TX_BYTES_64, tx_bytes);
+            osw_tlv_put_u64(t, OSW_STATS_STA_RX_BYTES_64, rx_bytes);
             osw_tlv_put_u32(t, OSW_STATS_STA_TX_FRAMES, tx_frames);
             osw_tlv_put_u32(t, OSW_STATS_STA_RX_FRAMES, rx_frames);
             osw_tlv_put_u32(t, OSW_STATS_STA_TX_RATE_MBPS, tx_rate);

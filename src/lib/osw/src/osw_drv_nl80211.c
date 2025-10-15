@@ -2066,6 +2066,8 @@ osw_drv_nl80211_vif_state_dump_sta_stats_resp_cb(struct nl_cmd *cmd,
         [NL80211_STA_INFO_SIGNAL] = { .type = NLA_U8 },
         [NL80211_STA_INFO_TX_BYTES] = { .type = NLA_U32 },
         [NL80211_STA_INFO_RX_BYTES] = { .type = NLA_U32 },
+        [NL80211_STA_INFO_RX_BYTES64] = { .type = NLA_U64 },
+        [NL80211_STA_INFO_TX_BYTES64] = { .type = NLA_U64 },
         [NL80211_STA_INFO_TX_PACKETS] = { .type = NLA_U32 },
         [NL80211_STA_INFO_RX_PACKETS] = { .type = NLA_U32 },
         [NL80211_STA_INFO_RX_BITRATE] = { .type = NLA_NESTED },
@@ -2082,6 +2084,8 @@ osw_drv_nl80211_vif_state_dump_sta_stats_resp_cb(struct nl_cmd *cmd,
     struct nlattr *nla_signal = tb_sta[NL80211_STA_INFO_SIGNAL];
     struct nlattr *nla_tx_bytes = tb_sta[NL80211_STA_INFO_TX_BYTES];
     struct nlattr *nla_rx_bytes = tb_sta[NL80211_STA_INFO_RX_BYTES];
+    struct nlattr *nla_tx_bytes64 = tb_sta[NL80211_STA_INFO_TX_BYTES64];
+    struct nlattr *nla_rx_bytes64 = tb_sta[NL80211_STA_INFO_RX_BYTES64];
     struct nlattr *nla_tx_packets = tb_sta[NL80211_STA_INFO_TX_PACKETS];
     struct nlattr *nla_rx_packets = tb_sta[NL80211_STA_INFO_RX_PACKETS];
     struct nlattr *nla_tx_retries = tb_sta[NL80211_STA_INFO_TX_RETRIES];
@@ -2148,6 +2152,8 @@ osw_drv_nl80211_vif_state_dump_sta_stats_resp_cb(struct nl_cmd *cmd,
             case OSW_DRV_NL80211_DUMP_STA_IMPL_DEFAULT:
                 if (nla_tx_bytes != NULL) osw_tlv_put_u32(&t, OSW_STATS_STA_TX_BYTES, nla_get_u32(nla_tx_bytes));
                 if (nla_rx_bytes != NULL) osw_tlv_put_u32(&t, OSW_STATS_STA_RX_BYTES, nla_get_u32(nla_rx_bytes));
+                if (nla_tx_bytes64 != NULL) osw_tlv_put_u64(&t, OSW_STATS_STA_TX_BYTES_64, nla_get_u64(nla_tx_bytes64));
+                if (nla_rx_bytes64 != NULL) osw_tlv_put_u64(&t, OSW_STATS_STA_RX_BYTES_64, nla_get_u64(nla_rx_bytes64));
                 if (nla_tx_packets != NULL) osw_tlv_put_u32(&t, OSW_STATS_STA_TX_FRAMES, nla_get_u32(nla_tx_packets));
                 if (nla_rx_packets != NULL) osw_tlv_put_u32(&t, OSW_STATS_STA_RX_FRAMES, nla_get_u32(nla_rx_packets));
                 if (rate_tx) osw_tlv_put_u32(&t, OSW_STATS_STA_TX_RATE_MBPS, rate_tx);

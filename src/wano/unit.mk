@@ -53,6 +53,7 @@ UNIT_EXTERN_CFLAGS += -I$(UNIT_PATH)/inc
 UNIT_EXPORT_CFLAGS += $(UNIT_CFLAGS)
 
 UNIT_DEPS += src/lib/common
+UNIT_DEPS += src/lib/execsh
 UNIT_DEPS += src/lib/json_util
 UNIT_DEPS += src/lib/log
 UNIT_DEPS += src/lib/module
@@ -60,10 +61,10 @@ UNIT_DEPS += src/lib/osa
 UNIT_DEPS += src/lib/osn
 UNIT_DEPS += src/lib/osp
 UNIT_DEPS += src/lib/ovsdb
+UNIT_DEPS += src/lib/ovsdb_bridge
 UNIT_DEPS += src/lib/pjs
 UNIT_DEPS += src/lib/reflink
 UNIT_DEPS += src/lib/target
-UNIT_DEPS += src/lib/ovsdb_bridge
 
 # WANO pipeline state machine
 $(eval $(call stam_generate,src/wano_ppline.dot))

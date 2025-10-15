@@ -11,7 +11,7 @@ menuconfig LIB_WE
         default y
         help
             To improve performance, a pre-allocated memory pool will
-            be used for WE. During initialization, this pool is created, 
+            be used for WE. During initialization, this pool is created,
             and subsequent memory requests will be fulfilled from it,
             replacing calls to malloc and calloc.
 

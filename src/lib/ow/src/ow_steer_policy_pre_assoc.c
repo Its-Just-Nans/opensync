@@ -1005,6 +1005,7 @@ ow_steer_policy_pre_assoc_free(struct ow_steer_policy_pre_assoc *pre_assoc_polic
     ow_steer_bm_observer_unregister(&pre_assoc_policy->bm_obs);
     ASSERT(ds_dlist_is_empty(&pre_assoc_policy->local_bssids), "bm obs should've removed all refs");
     ow_steer_policy_free(pre_assoc_policy->base);
+    FREE(pre_assoc_policy->log_prefix);
     FREE(pre_assoc_policy);
 }
 

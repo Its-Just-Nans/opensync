@@ -643,11 +643,8 @@ read_mnl_socket_cbk(struct ev_loop *loop, struct ev_io *watcher, int revents)
         LOGT("%s: mnl_socket_recvfrom failed: %s", __func__, strerror(errno));
         return;
     }
-    struct nlmsghdr *nlh = (struct nlmsghdr *)rcv_buf;
 
     portid = mnl_socket_get_portid(nf_ct->mnl);
-    LOGT("%s: Got message from PID: %u, expected: %u\n",
-          __func__,nlh->nlmsg_pid, portid);
     ret = mnl_cb_run2(rcv_buf, ret, 0, portid, nf_process_ct_cb, nf_ct->aggr, cb_ctl_array,
                       MNL_ARRAY_SIZE(cb_ctl_array));
 
@@ -1131,19 +1128,22 @@ generate_os_ufid(struct net_md_flow_key *key)
     uint16_t dport;
     uint8_t proto;
     os_ufid_t *id;
-    
+    os_macaddr_t zmac;
+
     if (!key)
     {
         LOGD("%s: Invalid key", __func__);
         return;
     }
 
+    MEMZERO(zmac);
     sport = ntohs(key->sport);
     dport = ntohs(key->dport);
     proto = key->ipprotocol;
 
-    smac = key->smac;
-    dmac = key->dmac;
+    smac = key->smac ? key->smac : &zmac;
+    dmac = key->dmac ? key->dmac : &zmac;
+
     id = key->ufid;
 
     id->u32[0] = smac->addr[0] ^ smac->addr[1] ^
@@ -1153,7 +1153,7 @@ generate_os_ufid(struct net_md_flow_key *key)
     id->u32[2] = dmac->addr[0] ^ dmac->addr[1] ^
                  dmac->addr[2] ^ dmac->addr[3] ^
                  dmac->addr[4] ^ dmac->addr[5] ^
-                 dport ^ proto;     
+                 dport ^ proto;
 
     LOGD("%s: Generated ufid: "PRI_os_ufid_t,
           __func__, FMT_os_ufid_t_pt(id));
@@ -1318,26 +1318,44 @@ nf_process_ct_flow(struct nlattr *tb[], struct net_md_aggregator *aggr, bool dir
 
     if (smac_lookup) key.smac = &smac;
     if (dmac_lookup) key.dmac = &dmac;
-    if (smac_lookup && dmac_lookup)
-    {
-        LOGT("%s: Setting flag eth_access", __func__);
-        key.flags |= NET_MD_ACC_ETH;
-    }
+    key.ethertype = (af == AF_INET) ? ETH_P_IP : ETH_P_IPV6;
+
 
     key.ct_zone = ct_zone;
 
-    if (key.flags & NET_MD_ACC_ETH)
+    /* Add 5-tuple flow*/
+    if ((!smac_lookup && dmac_lookup) ||
+        (smac_lookup && !dmac_lookup))
     {
-        key.ufid = &ufid;
-        generate_os_ufid(&key);
-        key.flags = 0;
-        key.ip_version = 0;
-        key.src_ip = NULL;
-        key.dst_ip = NULL;
-        key.sport = 0;
-        key.dport = 0;
+        rc = net_md_add_sample(aggr, &key, &counters);
+        if (!rc)
+        {
+            LOGW("%s: Couldn't add sample", __func__);
+            return;
+        }
     }
-    net_md_log_key(&key, __func__);
+    
+    // Add ethertype flows.
+    if (!key.smac && key.dmac)
+    {
+        key.smac = &smac;
+    }
+
+    if (!key.dmac && key.smac)
+    {
+        key.dmac = &dmac;
+    }
+
+       
+    key.ufid = &ufid;
+    generate_os_ufid(&key);
+    key.flags = 0;
+    key.ip_version = 0;
+    key.src_ip = NULL;
+    key.dst_ip = NULL;
+    key.ipprotocol = 0;
+    key.sport = 0;
+    key.dport = 0;
     /* Add flow*/
     rc = net_md_add_sample(aggr, &key, &counters);
     if (!rc)

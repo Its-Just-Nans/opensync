@@ -595,25 +595,6 @@ static void cm2_disable_gw_offline_state(void)
     }
 }
 
-static void cm2_restore_bridge_config()
-{
-    if (g_state.dev_type != CM2_DEVICE_BRIDGE)
-        return;
-
-    if (!cm2_link_is_bridge(&g_state.old_link) ||
-        cm2_link_is_bridge(&g_state.link))
-        return;
-
-    if (!cm2_is_eth_type(g_state.link.if_type))
-        return;
-
-    if (strcmp(g_state.old_link.if_name, g_state.link.if_name) != 0)
-        return;
-
-    LOGI("%s: Restore bridge [%s] configuration", g_state.old_link.if_name, g_state.old_link.bridge_name);
-    cm2_ovsdb_connection_update_bridge_state(g_state.old_link.if_name, g_state.old_link.bridge_name);
-}
-
 static void
 cm2_dismiss_skip_reconnect(const char *reason)
 {
@@ -652,7 +633,6 @@ start:
             break;
         case CM2_REASON_LINK_USED:
             WARN_ON(cm2_update_main_link_ip(&g_state.link) < 0);
-            cm2_restore_bridge_config();
 
             if (cm2_link_is_bridge(&g_state.link)) {
                 if (!cm2_is_wifi_type(g_state.link.if_type)) {

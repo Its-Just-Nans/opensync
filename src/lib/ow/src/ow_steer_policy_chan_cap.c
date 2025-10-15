@@ -142,6 +142,10 @@ static struct ow_steer_policy_chan_cap_link *
 ow_steer_policy_chan_cap_link_add(struct ow_steer_policy_chan_cap *policy,
                                   const struct osw_hwaddr *sta_addr)
 {
+    const bool already_exists = ds_tree_find(&policy->links, sta_addr) != NULL;
+    if (WARN_ON(already_exists)) {
+        return NULL;
+    }
     static const struct osw_sta_chan_cap_ops cap_ops = {
         .added_fn = ow_steer_policy_chan_cap_changed_cb,
         .removed_fn = ow_steer_policy_chan_cap_changed_cb,
@@ -177,6 +181,8 @@ ow_steer_policy_chan_cap_populate_links(struct ow_steer_policy_chan_cap *policy,
                                         const osw_sta_assoc_links_t *links)
 
 {
+    ow_steer_policy_chan_cap_free_links(policy);
+
     size_t i;
     for (i = 0; i < links->count; i++) {
         const osw_sta_assoc_link_t *link = &links->links[i];

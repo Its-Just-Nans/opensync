@@ -5,6 +5,15 @@ menuconfig LOGREAD_OSYNC
         This option enables the logread OpenSync tool. The logread tool is used
         to read syslog messages from the systemd log file.
 
+    config LOGREAD_OSYNC_LOG_HAS_WEEKDAY
+        bool "The syslog log message contains the weekday"
+        default n
+        help
+            This option is required to parse system logs that include the weekday
+            in each log line. For example:
+                n: 'Jan  1 12:00:00 systemd[1]: Starting Service...'
+                y: 'Fri Jan  1 12:00:00 systemd[1]: Starting Service...'
+
     config LOGREAD_OSYNC_LOG_HAS_HOSTNAME
         bool "The syslog log message contains the hostname"
         default n

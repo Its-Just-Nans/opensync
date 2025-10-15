@@ -398,9 +398,13 @@ osw_drv_sta_request_state_vsta_override(struct osw_drv_sta *sta)
     struct osw_drv_phy *phy = vif->phy;
     struct osw_drv *drv = phy->drv;
     const bool match = (osw_hwaddr_cmp(vif->vsta_root_ap, &sta->mac_addr) == 0);
+    struct osw_drv_sta_state *cur_sta = &sta->cur_state;
     const struct osw_drv_sta_state state = {
         .connected = match,
         .mld_addr = *(match ? &vif->cur_state.u.sta.link.mld_addr : osw_hwaddr_zero()),
+        .pmf = match ? cur_sta->pmf : false,
+        .akm = match ? cur_sta->akm : OSW_AKM_UNSPEC,
+        .pairwise_cipher = match ? cur_sta->pairwise_cipher : OSW_CIPHER_UNSPEC,
     };
 
     LOGT("osw: drv: %s/%s/%s/"OSW_HWADDR_FMT": match=%d",
@@ -1006,6 +1010,22 @@ osw_drv_debug_passpoint_list_int(const struct osw_drv_vif *vif,
 }
 
 static void
+osw_drv_vif_dump_acl(const struct osw_drv_vif *vif)
+{
+    const struct osw_hwaddr_list *o = &vif->cur_state.u.ap.acl;
+    size_t i;
+
+    for (i = 0; i < o->count; i++) {
+        const struct osw_hwaddr *oi = &o->list[i];
+        LOGI("osw: drv: %s/%s/%s: acl: "OSW_HWADDR_FMT,
+             vif->phy->drv->ops->name,
+             vif->phy->phy_name,
+             vif->vif_name,
+             OSW_HWADDR_ARG(oi));
+    }
+}
+
+static void
 osw_drv_vif_dump_neigh_ft(const struct osw_drv_vif *vif)
 {
     const struct osw_neigh_ft_list *o = &vif->cur_state.u.ap.neigh_ft_list;
@@ -1106,6 +1126,9 @@ osw_drv_vif_state_is_changed_ap(const struct osw_drv_vif *vif)
     const bool changed_oce_min_rssi_dbm = o->oce_min_rssi_dbm != n->oce_min_rssi_dbm;
     const bool changed_oce_retry_delay_sec = o->oce_retry_delay_sec != n->oce_retry_delay_sec;
     const bool changed_max_sta = o->max_sta != n->max_sta;
+    const bool changed_rsn_override_1 = (memcmp(&o->rsn_override_1, &n->rsn_override_1, sizeof(o->rsn_override_1)) != 0);
+    const bool changed_rsn_override_2 = (memcmp(&o->rsn_override_2, &n->rsn_override_2, sizeof(o->rsn_override_2)) != 0);
+    const bool changed_rsn_override_omit_rsnxe = o->rsn_override_omit_rsnxe != n->rsn_override_omit_rsnxe;
 
     bool changed_acl = false;
     bool changed_psk = false;
@@ -1258,6 +1281,9 @@ osw_drv_vif_state_is_changed_ap(const struct osw_drv_vif *vif)
     changed |= changed_oce_min_rssi_dbm;
     changed |= changed_oce_retry_delay_sec;
     changed |= changed_max_sta;
+    changed |= changed_rsn_override_1;
+    changed |= changed_rsn_override_2;
+    changed |= changed_rsn_override_omit_rsnxe;
 
     if (changed_bridge) {
         const int max = ARRAY_SIZE(o->bridge_if_name.buf);
@@ -1340,6 +1366,33 @@ osw_drv_vif_state_is_changed_ap(const struct osw_drv_vif *vif)
              vif->vif_name,
              o->max_sta,
              n->max_sta);
+    }
+
+    if (changed_rsn_override_1) {
+        LOGI("osw: drv: %s/%s/%s: rsn_override_1: "OSW_RSN_OVERRIDE_FMT" -> "OSW_RSN_OVERRIDE_FMT,
+             vif->phy->drv->ops->name,
+             vif->phy->phy_name,
+             vif->vif_name,
+             OSW_RSN_OVERRIDE_ARG(&o->rsn_override_1),
+             OSW_RSN_OVERRIDE_ARG(&n->rsn_override_1));
+    }
+
+    if (changed_rsn_override_2) {
+        LOGI("osw: drv: %s/%s/%s: rsn_override_2: "OSW_RSN_OVERRIDE_FMT" -> "OSW_RSN_OVERRIDE_FMT,
+             vif->phy->drv->ops->name,
+             vif->phy->phy_name,
+             vif->vif_name,
+             OSW_RSN_OVERRIDE_ARG(&o->rsn_override_2),
+             OSW_RSN_OVERRIDE_ARG(&n->rsn_override_2));
+    }
+
+    if (changed_rsn_override_omit_rsnxe) {
+        LOGI("osw: drv: %s/%s/%s: rsn_override_omit_rsnxe: %d -> %d",
+             vif->phy->drv->ops->name,
+             vif->phy->phy_name,
+             vif->vif_name,
+             o->rsn_override_omit_rsnxe,
+             n->rsn_override_omit_rsnxe);
     }
 
     if (changed_isolated) {
@@ -2328,6 +2381,14 @@ osw_drv_vif_dump_ap(struct osw_drv_vif *vif)
          vif->vif_name,
          mbss_mode_str);
 
+    char wpa_str[64];
+    osw_wpa_to_str(wpa_str, sizeof(wpa_str), &ap->wpa);
+    LOGI("osw: drv: %s/%s/%s: ap: wpa: %s",
+         vif->phy->drv->ops->name,
+         vif->phy->phy_name,
+         vif->vif_name,
+         wpa_str);
+
     LOGI("osw: drv: %s/%s/%s: ap: ft_over_ds: %d",
          vif->phy->drv->ops->name,
          vif->phy->phy_name,
@@ -2408,6 +2469,31 @@ osw_drv_vif_dump_ap(struct osw_drv_vif *vif)
          vif->vif_name,
          ap->max_sta);
 
+    LOGI("osw: drv: %s/%s/%s: ap: rsn_override_1: "OSW_RSN_OVERRIDE_FMT,
+         vif->phy->drv->ops->name,
+         vif->phy->phy_name,
+         vif->vif_name,
+         OSW_RSN_OVERRIDE_ARG(&ap->rsn_override_1));
+
+    LOGI("osw: drv: %s/%s/%s: ap: rsn_override_2: "OSW_RSN_OVERRIDE_FMT,
+         vif->phy->drv->ops->name,
+         vif->phy->phy_name,
+         vif->vif_name,
+         OSW_RSN_OVERRIDE_ARG(&ap->rsn_override_2));
+
+    LOGI("osw: drv: %s/%s/%s: ap: rsn_override_omit_rsnxe: %d",
+         vif->phy->drv->ops->name,
+         vif->phy->phy_name,
+         vif->vif_name,
+         ap->rsn_override_omit_rsnxe);
+
+    LOGI("osw: drv: %s/%s/%s: ap: acl_policy: %s",
+         vif->phy->drv->ops->name,
+         vif->phy->phy_name,
+         vif->vif_name,
+         osw_acl_policy_to_str(ap->acl_policy));
+
+    osw_drv_vif_dump_acl(vif);
     osw_drv_vif_dump_neigh_ft(vif);
     osw_drv_vif_dump_passpoint(vif);
 }

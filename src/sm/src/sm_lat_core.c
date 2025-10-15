@@ -294,7 +294,7 @@ static void sm_lat_core_ifname_enable(sm_lat_core_ifname_t *i, const bool enable
 
 static sm_lat_core_ifname_t *sm_lat_core_ifname_alloc(sm_lat_core_t *c, const char *name)
 {
-    sm_lat_core_ifname_t *i = CALLOC(1, sizeof(*c));
+    sm_lat_core_ifname_t *i = CALLOC(1, sizeof(*i));
     i->c = c;
     i->name = STRDUP(name);
     ds_tree_init(&i->refs, ds_void_cmp, sm_lat_core_stream_ifname_t, node_shared);
@@ -853,6 +853,7 @@ static void sm_lat_core_poll_done_cb(void *priv)
     sm_lat_core_t *c = priv;
     LOGD(LOG_PREFIX("poll: done"));
     sm_lat_sys_poll_drop(c->poll);
+    c->poll = NULL;
     sm_lat_core_stream_t *st;
     ds_tree_foreach (&c->streams, st)
     {

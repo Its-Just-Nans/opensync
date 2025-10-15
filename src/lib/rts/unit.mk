@@ -29,7 +29,7 @@
 ###############################################################################
 UNIT_NAME := rts
 
-UNIT_TYPE := STATIC_LIB
+UNIT_TYPE := LIB
 
 UNIT_SRC := src/rts.c
 UNIT_SRC += src/rts_buffer.c
@@ -38,7 +38,7 @@ UNIT_SRC += src/rts_mpmc.c
 UNIT_SRC += src/rts_slob.c
 UNIT_SRC += src/rts_vm.c
 
-UNIT_CFLAGS += -I$(UNIT_PATH)/inc
+UNIT_CFLAGS := -I$(UNIT_PATH)/inc
 UNIT_CFLAGS += -fPIC
 
 # RTS stuff
@@ -49,11 +49,6 @@ RTS_PATCH = $(shell awk '/PATCH/ {print $$3}' $(UNIT_PATH)/.version)
 UNIT_CFLAGS += -DRTS_MAJOR=$(RTS_MAJOR)
 UNIT_CFLAGS += -DRTS_MINOR=$(RTS_MINOR)
 UNIT_CFLAGS += -DRTS_PATCH=$(RTS_PATCH)
-
-ifeq ($(CONFIG_WALLEYE_RTS_RELEASE_BUILD),y)
-UNIT_CFLAGS += -DNDEBUG # Disable asserts
-UNIT_CFLAGS += -O2 -nostdlib -nodefaultlibs -fno-stack-protector # optimization
-endif
 
 UNIT_DEPS := src/lib/log
 

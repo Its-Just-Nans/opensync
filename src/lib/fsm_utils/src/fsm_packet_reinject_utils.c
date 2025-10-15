@@ -161,10 +161,12 @@ fsm_prepare_net_parser_forward(struct net_header_parser *net_parser)
     packet = net_parser->start;
 
     eth_header = net_header_get_eth(net_parser);
-    LOGD("%s: source mac: " PRI_os_macaddr_lower_t ", dst mac: " PRI_os_macaddr_lower_t,
+    LOGD("%s: source mac: " PRI_os_macaddr_lower_t ", dst mac: " PRI_os_macaddr_lower_t
+        ", re-injecting source mac: " PRI_os_macaddr_lower_t,
          __func__,
          FMT_os_macaddr_pt(eth_header->srcmac),
-         FMT_os_macaddr_pt(eth_header->dstmac));
+         FMT_os_macaddr_pt(eth_header->dstmac),
+         FMT_os_macaddr_pt(net_parser->src_eth_addr));
 
     memcpy(net_parser->raw_dst->sll_addr, eth_header->dstmac,
            sizeof(os_macaddr_t));

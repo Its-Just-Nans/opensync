@@ -27,11 +27,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef OSW_TYPES_H_INCLUDED
 #define OSW_TYPES_H_INCLUDED
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
+/* libc */
 #include <stdio.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
 #include <inttypes.h>
+
+/* opensync */
+#include <util.h>
 
 #define OSW_NEIGH_FT_FMT OSW_HWADDR_FMT"/id=%s/keylen=%zu"
 #define OSW_NEIGH_FT_ARG(n) OSW_HWADDR_ARG(&(n)->bssid), (n)->nas_identifier.buf, strlen((n)->ft_encr_key.buf)
@@ -237,15 +245,46 @@ struct osw_reg_domain {
     (rd)->revision, \
     osw_reg_dfs_to_str((rd)->dfs)
 
-/* FIXME: need osw_channel_ helper to convert freq->chan */
+#define OSW_CHANNEL_P80_FMT "+ch%d.%dMHz"
+#define OSW_CHANNEL_P80_ARG(c) \
+    osw_freq_to_chan((c)->center_freq1_mhz), \
+    (c)->center_freq1_mhz
 
-#define OSW_CHANNEL_FMT "%d (%s/%d %d) 0x%"PRIx16
-#define OSW_CHANNEL_ARG(c) \
-    (c)->control_freq_mhz, \
+#define OSW_CHANNEL_NON_20MHZ_FMT ".%sMHz[ch%d.%dMHz%s]"
+#define OSW_CHANNEL_NON_20MHZ_ARG(c) \
     osw_channel_width_to_str((c)->width), \
+    osw_freq_to_chan((c)->center_freq0_mhz), \
     (c)->center_freq0_mhz, \
-    (c)->center_freq1_mhz, \
+    ({ \
+        char buf[64] = {0}; \
+        if ((c)->width == OSW_CHANNEL_80P80MHZ) { \
+            snprintf(buf, sizeof(buf), OSW_CHANNEL_P80_FMT, OSW_CHANNEL_P80_ARG(c)); \
+        } \
+        strdupa(buf); \
+    })
+
+#define OSW_CHANNEL_PUNCT_FMT ".0x%"PRIx16
+#define OSW_CHANNEL_PUNCT_ARG(c) \
     (c)->puncture_bitmap
+
+#define OSW_CHANNEL_FMT "ch%d.%dMHz%s%s"
+#define OSW_CHANNEL_ARG(c) \
+    osw_freq_to_chan((c)->control_freq_mhz), \
+    (c)->control_freq_mhz, \
+    ({ \
+        char buf[64] = {0}; \
+        if ((c)->width != OSW_CHANNEL_20MHZ) { \
+            snprintf(buf, sizeof(buf), OSW_CHANNEL_NON_20MHZ_FMT, OSW_CHANNEL_NON_20MHZ_ARG(c)); \
+        } \
+        strdupa(buf); \
+    }), \
+    ({ \
+        char buf[64] = {0}; \
+        if ((c)->puncture_bitmap != 0) { \
+            snprintf(buf, sizeof(buf), OSW_CHANNEL_PUNCT_FMT, OSW_CHANNEL_PUNCT_ARG(c)); \
+        } \
+        strdupa(buf); \
+    })
 
 struct osw_channel_state {
     struct osw_channel channel;
@@ -531,6 +570,91 @@ struct osw_wpa {
     enum osw_pmf pmf;
     bool beacon_protection;
     int group_rekey_seconds;
+};
+
+
+bool osw_wpa_is_psk(const struct osw_wpa *wpa);
+bool osw_wpa_is_sae(const struct osw_wpa *wpa);
+uint32_t osw_wpa_get_akm_bitmask(const struct osw_wpa *wpa);
+void osw_wpa_set_akm_bitmask(struct osw_wpa *wpa, uint32_t akm);
+uint32_t osw_wpa_get_pairwise_bitmask(const struct osw_wpa *wpa);
+void osw_wpa_set_pairwise_bitmask(struct osw_wpa *wpa, uint32_t pairwise);
+bool osw_akm_bitmask_is_wpa(uint32_t akm);
+bool osw_akm_bitmask_is_rsn(uint32_t akm);
+
+#define OSW_CIPHER_BITMASK_FMT "%s"
+#define OSW_CIPHER_BITMASK_ARG(x) \
+    ({ \
+        char buf[256] = {0}; \
+        if ((x) & (1 << OSW_CIPHER_RSN_NONE))         STRSCAT(buf, "rsn-none,"); \
+        if ((x) & (1 << OSW_CIPHER_RSN_WEP_40))       STRSCAT(buf, "rsn-wep-40,"); \
+        if ((x) & (1 << OSW_CIPHER_RSN_TKIP))         STRSCAT(buf, "rsn-tkip,"); \
+        if ((x) & (1 << OSW_CIPHER_RSN_CCMP_128))     STRSCAT(buf, "rsn-ccmp-128,"); \
+        if ((x) & (1 << OSW_CIPHER_RSN_WEP_104))      STRSCAT(buf, "rsn-wep-104,"); \
+        if ((x) & (1 << OSW_CIPHER_RSN_BIP_CMAC_128)) STRSCAT(buf, "rsn-bip-cmac-128,"); \
+        if ((x) & (1 << OSW_CIPHER_RSN_GCMP_128))     STRSCAT(buf, "rsn-gcmp-128,"); \
+        if ((x) & (1 << OSW_CIPHER_RSN_GCMP_256))     STRSCAT(buf, "rsn-gcmp-256,"); \
+        if ((x) & (1 << OSW_CIPHER_RSN_CCMP_256))     STRSCAT(buf, "rsn-ccmp-256,"); \
+        if ((x) & (1 << OSW_CIPHER_RSN_BIP_GMAC_128)) STRSCAT(buf, "rsn-bip-gmac-128,"); \
+        if ((x) & (1 << OSW_CIPHER_RSN_BIP_GMAC_256)) STRSCAT(buf, "rsn-bip-gmac-256,"); \
+        if ((x) & (1 << OSW_CIPHER_RSN_BIP_CMAC_256)) STRSCAT(buf, "rsn-bip-cmac-256,"); \
+        if ((x) & (1 << OSW_CIPHER_WPA_NONE))         STRSCAT(buf, "wpa-none,"); \
+        if ((x) & (1 << OSW_CIPHER_WPA_WEP_40))       STRSCAT(buf, "wpa-wep-40,"); \
+        if ((x) & (1 << OSW_CIPHER_WPA_TKIP))         STRSCAT(buf, "wpa-tkip,"); \
+        if ((x) & (1 << OSW_CIPHER_WPA_CCMP))         STRSCAT(buf, "wpa-ccmp,"); \
+        if ((x) & (1 << OSW_CIPHER_WPA_WEP_104))      STRSCAT(buf, "wpa-wep-104,"); \
+        strchomp(buf, ","); \
+        strdupa(buf); \
+    })
+
+#define OSW_AKM_BITMASK_FMT "%s"
+#define OSW_AKM_BITMASK_ARG(x) \
+    ({ \
+        char buf[256] = {0}; \
+        if ((x) & (1 << OSW_AKM_RSN_EAP))             STRSCAT(buf, "rsn-eap,"); \
+        if ((x) & (1 << OSW_AKM_RSN_PSK))             STRSCAT(buf, "rsn-psk,"); \
+        if ((x) & (1 << OSW_AKM_RSN_FT_EAP))          STRSCAT(buf, "rsn-ft-eap,"); \
+        if ((x) & (1 << OSW_AKM_RSN_FT_PSK))          STRSCAT(buf, "rsn-ft-psk,"); \
+        if ((x) & (1 << OSW_AKM_RSN_EAP_SHA256))      STRSCAT(buf, "rsn-eap-sha256,"); \
+        if ((x) & (1 << OSW_AKM_RSN_PSK_SHA256))      STRSCAT(buf, "rsn-psk-sha256,"); \
+        if ((x) & (1 << OSW_AKM_RSN_SAE))             STRSCAT(buf, "rsn-sae,"); \
+        if ((x) & (1 << OSW_AKM_RSN_FT_SAE))          STRSCAT(buf, "rsn-ft-sae,"); \
+        if ((x) & (1 << OSW_AKM_RSN_EAP_SUITE_B))     STRSCAT(buf, "rsn-eap-suite-b,"); \
+        if ((x) & (1 << OSW_AKM_RSN_EAP_SUITE_B_192)) STRSCAT(buf, "rsn-eap-suite-b-192,"); \
+        if ((x) & (1 << OSW_AKM_RSN_FT_EAP_SHA384))   STRSCAT(buf, "rsn-ft-eap-sha384,"); \
+        if ((x) & (1 << OSW_AKM_RSN_FT_PSK_SHA384))   STRSCAT(buf, "rsn-ft-psk-sha384,"); \
+        if ((x) & (1 << OSW_AKM_RSN_PSK_SHA384))      STRSCAT(buf, "rsn-psk-sha384,"); \
+        if ((x) & (1 << OSW_AKM_RSN_EAP_SHA384))      STRSCAT(buf, "rsn-eap-sha384,"); \
+        if ((x) & (1 << OSW_AKM_RSN_SAE_EXT))         STRSCAT(buf, "rsn-sae-ext,"); \
+        if ((x) & (1 << OSW_AKM_RSN_FT_SAE_EXT))      STRSCAT(buf, "rsn-ft-sae-ext,"); \
+        if ((x) & (1 << OSW_AKM_WPA_NONE))            STRSCAT(buf, "wpa-none,"); \
+        if ((x) & (1 << OSW_AKM_WPA_8021X))           STRSCAT(buf, "wpa-8021x,"); \
+        if ((x) & (1 << OSW_AKM_WPA_PSK))             STRSCAT(buf, "wpa-psk,"); \
+        if ((x) & (1 << OSW_AKM_WFA_DPP))             STRSCAT(buf, "wfa-dpp,"); \
+        strchomp(buf, ","); \
+        strdupa(buf); \
+    })
+
+#define OSW_RSN_OVERRIDE_ENABLED_FMT "enabled(akm:"OSW_AKM_BITMASK_FMT" pairwise:"OSW_CIPHER_BITMASK_FMT" pmf:%s)"
+#define OSW_RSN_OVERRIDE_ENABLED_ARG(x) \
+    OSW_AKM_BITMASK_ARG((x)->akm), \
+    OSW_CIPHER_BITMASK_ARG((x)->pairwise), \
+    osw_pmf_to_str((x)->pmf)
+
+#define OSW_RSN_OVERRIDE_FMT "%s"
+#define OSW_RSN_OVERRIDE_ARG(x) \
+    ((x)->enabled ? ({ \
+        char buf[512] = {0}; \
+        snprintf(buf, sizeof(buf), OSW_RSN_OVERRIDE_ENABLED_FMT, \
+                 OSW_RSN_OVERRIDE_ENABLED_ARG(x)); \
+        strdupa(buf); \
+        }) : "disabled")
+
+struct osw_rsn_override {
+    bool enabled;
+    uint32_t akm; /* bitmask of osw_akm */
+    uint32_t pairwise; /* bitmask of osw_cipher */
+    enum osw_pmf pmf;
 };
 
 enum osw_rate_legacy {

@@ -1,6 +1,6 @@
-menuconfig WALLEYE_RTS_RELEASE_BUILD
-    bool "Walleye RTS library release mode"
+menuconfig LIB_RTS_RELEASE_BUILD
+    bool "RTS library release mode"
     default y
     depends on MANAGER_FSM
     help
-        The Walleye RTS library will be built in release mode
+        The RTS library will be built in release mode

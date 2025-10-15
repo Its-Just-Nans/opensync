@@ -246,8 +246,8 @@ struct osw_phy_chan_observer *osw_phy_chan_observer_setup(
 void osw_phy_chan_observer_dismantle(struct osw_phy_chan_observer *obs)
 {
     if (obs == NULL) return;
-    FREE(obs->phy_name);
     osw_state_unregister_observer(&obs->state_obs);
+    FREE(obs->phy_name);
     bool tree_not_empty = !ds_tree_is_empty(&obs->vif_tree);
     WARN_ON(tree_not_empty);
     FREE(obs);

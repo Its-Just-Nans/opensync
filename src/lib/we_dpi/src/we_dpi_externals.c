@@ -77,7 +77,7 @@ int dpi_ext_exec(we_state_t s, void *arg)
 
     LOGD("%s: performing an update\n", __func__);
     if (we_top(agent) != 2) LOGD("%s: we_top not what we expected. Got %d\n", __func__, we_top(agent));
-    assert(we_top(agent) == 2);
+    we_assert(we_top(agent) == 2);
 
     return EAGAIN;
 }
@@ -85,7 +85,9 @@ int dpi_ext_exec(we_state_t s, void *arg)
 int dpi_ext_exit(we_state_t s, void *user)
 {
     (void)user;
-    assert(we_type(s, we_top(s)) == WE_NUM);
+    we_assert(we_type(s, we_top(s)) == WE_NUM);
+    if (!(we_type(s, we_top(s)) == WE_NUM)) return ECANCELED;
+
     we_popr(s, we_top(s));
     we_pop(s);
     return ECANCELED;
@@ -201,8 +203,12 @@ int dpi_ext_write(we_state_t s, void *user)
     uint8_t *buf;
     int64_t res = 0;
     (void)user;
-    assert(we_type(s, we_top(s)) == WE_BUF);
-    assert(we_type(s, we_top(s) - 1) == WE_NUM);
+    we_assert(we_type(s, we_top(s)) == WE_BUF);
+    if (!(we_type(s, we_top(s)) == WE_BUF)) return ECANCELED;
+
+    we_assert(we_type(s, we_top(s) - 1) == WE_NUM);
+    if (!(we_type(s, we_top(s) - 1) == WE_NUM)) return ECANCELED;
+
     int len = we_read(s, we_top(s), WE_BUF, &buf);
     if (len)
     {

@@ -2504,6 +2504,8 @@ void net_md_log_aggr(struct net_md_aggregator *aggr)
 {
     struct net_md_eth_pair *eth_pair;
 
+    if (!LOG_SEVERITY_ENABLED(LOG_SEVERITY_DEBUG)) return;
+
     eth_pair = ds_tree_head(aggr->eth_pairs);
     while (eth_pair != NULL)
     {
@@ -2511,7 +2513,8 @@ void net_md_log_aggr(struct net_md_aggregator *aggr)
         net_md_log_accs(aggr, &eth_pair->five_tuple_flows);
         eth_pair = ds_tree_next(aggr->eth_pairs, eth_pair);
     }
-
+    LOGD("%s: ===================================", __func__);
+    LOGD("%s: Logging aggregator five tuple flows:", __func__);
     net_md_log_accs(aggr, aggr->five_tuple_flows);
 }
 

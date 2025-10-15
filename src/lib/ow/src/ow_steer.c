@@ -185,7 +185,8 @@ ow_steer_stats_report_cb(enum osw_stats_id id,
         tb[OSW_STATS_STA_MAC_ADDRESS] == NULL)
         return;
     if (tb[OSW_STATS_STA_SNR_DB] == NULL &&
-        (tb[OSW_STATS_STA_TX_BYTES] == NULL && tb[OSW_STATS_STA_RX_BYTES] == NULL))
+        (tb[OSW_STATS_STA_TX_BYTES_64] == NULL &&
+         tb[OSW_STATS_STA_RX_BYTES_64] == NULL))
         return;
 
     sta_addr = osw_tlv_get_data(tb[OSW_STATS_STA_MAC_ADDRESS]);
@@ -215,12 +216,14 @@ ow_steer_stats_report_cb(enum osw_stats_id id,
         ow_steer_snr_notify_observers(sta_addr, bssid, snr_db);
     }
 
-    if (tb[OSW_STATS_STA_TX_BYTES] != NULL || tb[OSW_STATS_STA_RX_BYTES] != NULL) {
+    if (tb[OSW_STATS_STA_TX_BYTES_64] != NULL || tb[OSW_STATS_STA_RX_BYTES_64] != NULL)
+    {
         struct ow_steer_sta *sta;
+
         uint64_t data_vol = 0;
 
-        data_vol += tb[OSW_STATS_STA_TX_BYTES] != NULL ? osw_tlv_get_u32(tb[OSW_STATS_STA_TX_BYTES]) : 0;
-        data_vol += tb[OSW_STATS_STA_RX_BYTES] != NULL ? osw_tlv_get_u32(tb[OSW_STATS_STA_RX_BYTES]) : 0;
+        data_vol += tb[OSW_STATS_STA_TX_BYTES_64] != NULL ? osw_tlv_get_u64(tb[OSW_STATS_STA_TX_BYTES_64]) : 0;
+        data_vol += tb[OSW_STATS_STA_RX_BYTES_64] != NULL ? osw_tlv_get_u64(tb[OSW_STATS_STA_RX_BYTES_64]) : 0;
 
         ds_dlist_foreach(&g_sta_list, sta) {
             if (osw_hwaddr_cmp(ow_steer_sta_get_addr(sta), sta_addr) != 0)

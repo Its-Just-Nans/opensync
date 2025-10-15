@@ -22,6 +22,8 @@ if ! type Healthcheck_Fatal >/dev/null; then
     }
 fi
 
+append_reason=""
+
 let _hc_failcnt=0
 while true; do
     sleep $HEALTHCHECK_INTERVAL
@@ -32,7 +34,7 @@ while true; do
         ( . $x; )
         RET=$?
         if [ $RET -gt 0 ]; then
-            log_err "$(basename "$x") check failed"
+            log_err "$(basename "$x") check failed with return code $RET"
             break
         fi
         log_debug "$(basename "$x") check passed"
@@ -51,7 +53,8 @@ while true; do
         let _hc_failcnt++
         log_warn "${_hc_failcnt}/${HEALTHCHECK_THRESHOLD} failures reached"
         if [ $_hc_failcnt -ge $HEALTHCHECK_THRESHOLD ]; then
-            Healthcheck_Fatal $(basename "$x")
+            append_fatal_reason "$RET"
+            Healthcheck_Fatal $(basename "$x") "$append_reason"
         fi
     fi
 done

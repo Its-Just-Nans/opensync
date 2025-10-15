@@ -445,6 +445,7 @@ lan_stats_is_mac_in_tag(char *tag, os_macaddr_t *mac)
 {
     char mac_s[32] = { 0 };
 
+    if (!mac) return false;
     snprintf(mac_s, sizeof(mac_s), PRI_os_macaddr_lower_t,
              FMT_os_macaddr_pt(mac));
 
@@ -538,6 +539,21 @@ void lan_stats_plugin_exit(fcm_collect_plugin_t *collector)
         return;
     }
     net_md_close_active_window(aggr);
+
+    if (aggr->eth_pairs != NULL)
+    {
+        struct net_md_eth_pair *pair = ds_tree_head(aggr->eth_pairs);
+        while (pair != NULL)
+        {
+            struct net_md_eth_pair *next = ds_tree_next(aggr->eth_pairs, pair);
+            ds_tree_remove(aggr->eth_pairs, pair);
+            net_md_free_eth_pair(pair);
+            FREE(pair);
+            pair = next;
+        }
+        aggr->eth_pairs = NULL;
+    }
+
     aggr->five_tuple_flows = NULL;
     aggr->eth_pairs = NULL;
     net_md_free_aggregator(aggr);

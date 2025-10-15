@@ -1,5 +1,11 @@
-menu "DHCP Relay Configuration"
+menuconfig LIB_LEGACY_FSM_DHCP_RELAY
+    bool "Enables Opensync legacy FSM DHCP parser"
+    default n
+    help
+       N/A
+
     config DHCP_RELAY_SPOOF_SOURCE_MAC
+        depends on LIB_LEGACY_FSM_DHCP_RELAY
         bool "Spoof source MAC"
         default y
         help
@@ -11,4 +17,3 @@ menu "DHCP Relay Configuration"
             This option enables 'source MAC address spoofing', meaning that
             the Ethernet source MAC address is replaced with the MAC address
             of the DHCP client.
-endmenu

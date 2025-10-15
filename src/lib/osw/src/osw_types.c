@@ -2183,6 +2183,8 @@ osw_passpoint_free_internal(struct osw_passpoint *p)
 {
     if (p == NULL) return;
 
+    FREE(p->t_c_filename);
+    FREE(p->anqp_elem);
     str_array_free(p->domain_list, p->domain_list_len);
     str_array_free(p->nairealm_list, p->nairealm_list_len);
     str_array_free(p->roamc_list, p->roamc_list_len);
@@ -2388,6 +2390,122 @@ const char *osw_sta_cell_cap_to_cstr(enum osw_sta_cell_cap cap)
         case OSW_STA_CELL_NOT_AVAILABLE: return "not available";
     }
     return "";
+}
+
+bool
+osw_wpa_is_psk(const struct osw_wpa *wpa)
+{
+    if (wpa == NULL) return false;
+    if (wpa->akm_psk) return true;
+    if (wpa->akm_psk_sha256) return true;
+    if (wpa->akm_ft_psk) return true;
+    return false;
+}
+
+bool
+osw_wpa_is_sae(const struct osw_wpa *wpa)
+{
+    if (wpa == NULL) return false;
+    if (wpa->akm_sae) return true;
+    if (wpa->akm_sae_ext) return true;
+    if (wpa->akm_ft_sae) return true;
+    if (wpa->akm_ft_sae_ext) return true;
+    return false;
+}
+
+uint32_t
+osw_wpa_get_akm_bitmask(const struct osw_wpa *wpa)
+{
+    return (wpa->wpa && wpa->akm_eap ? (1 << OSW_AKM_WPA_8021X) : 0) |
+           (wpa->wpa && wpa->akm_psk ? (1 << OSW_AKM_WPA_PSK) : 0) |
+           (wpa->rsn && wpa->akm_eap ? (1 << OSW_AKM_RSN_EAP) : 0) |
+           (wpa->rsn && wpa->akm_psk ? (1 << OSW_AKM_RSN_PSK) : 0) |
+           (wpa->rsn && wpa->akm_ft_eap ? (1 << OSW_AKM_RSN_FT_EAP) : 0) |
+           (wpa->rsn && wpa->akm_ft_psk ? (1 << OSW_AKM_RSN_FT_PSK) : 0) |
+           (wpa->rsn && wpa->akm_eap_sha256 ? (1 << OSW_AKM_RSN_EAP_SHA256) : 0) |
+           (wpa->rsn && wpa->akm_psk_sha256 ? (1 << OSW_AKM_RSN_PSK_SHA256) : 0) |
+           (wpa->rsn && wpa->akm_sae ? (1 << OSW_AKM_RSN_SAE) : 0) |
+           (wpa->rsn && wpa->akm_sae_ext ? (1 << OSW_AKM_RSN_SAE_EXT) : 0) |
+           (wpa->rsn && wpa->akm_ft_sae ? (1 << OSW_AKM_RSN_FT_SAE) : 0) |
+           (wpa->rsn && wpa->akm_ft_sae_ext ? (1 << OSW_AKM_RSN_FT_SAE_EXT) : 0) |
+           (wpa->rsn && wpa->akm_eap_suite_b ? (1 << OSW_AKM_RSN_EAP_SUITE_B) : 0) |
+           (wpa->rsn && wpa->akm_eap_suite_b192 ? (1 << OSW_AKM_RSN_EAP_SUITE_B_192) : 0) |
+           (wpa->rsn && wpa->akm_ft_eap_sha384 ? (1 << OSW_AKM_RSN_FT_EAP_SHA384) : 0) |
+           (wpa->rsn && wpa->akm_eap_sha384 ? (1 << OSW_AKM_RSN_EAP_SHA384) : 0);
+}
+
+void
+osw_wpa_set_akm_bitmask(struct osw_wpa *wpa, uint32_t akm)
+{
+    wpa->akm_eap = ((akm & (1 << OSW_AKM_WPA_8021X)) |
+                    (akm & (1 << OSW_AKM_RSN_EAP))) != 0;
+    wpa->akm_psk = ((akm & (1 << OSW_AKM_WPA_PSK)) |
+                    (akm & (1 << OSW_AKM_RSN_PSK))) != 0;
+    wpa->akm_ft_eap = (akm & (1 << OSW_AKM_RSN_FT_EAP)) != 0;
+    wpa->akm_ft_psk = (akm & (1 << OSW_AKM_RSN_FT_PSK)) != 0;
+    wpa->akm_eap_sha256 = (akm & (1 << OSW_AKM_RSN_EAP_SHA256)) != 0;
+    wpa->akm_psk_sha256 = (akm & (1 << OSW_AKM_RSN_PSK_SHA256)) != 0;
+    wpa->akm_sae = (akm & (1 << OSW_AKM_RSN_SAE)) != 0;
+    wpa->akm_sae_ext = (akm & (1 << OSW_AKM_RSN_SAE_EXT)) != 0;
+    wpa->akm_ft_sae = (akm & (1 << OSW_AKM_RSN_FT_SAE)) != 0;
+    wpa->akm_ft_sae_ext = (akm & (1 << OSW_AKM_RSN_FT_SAE_EXT)) != 0;
+    wpa->akm_eap_suite_b = (akm & (1 << OSW_AKM_RSN_EAP_SUITE_B)) != 0;
+    wpa->akm_eap_suite_b192 = (akm & (1 << OSW_AKM_RSN_EAP_SUITE_B_192)) != 0;
+    wpa->akm_ft_eap_sha384 = (akm & (1 << OSW_AKM_RSN_FT_EAP_SHA384)) != 0;
+    wpa->akm_eap_sha384 = (akm & (1 << OSW_AKM_RSN_EAP_SHA384)) != 0;
+}
+
+uint32_t
+osw_wpa_get_pairwise_bitmask(const struct osw_wpa *wpa)
+{
+    return (wpa->wpa && wpa->pairwise_tkip ? (1 << OSW_CIPHER_WPA_TKIP) : 0) |
+           (wpa->wpa && wpa->pairwise_ccmp ? (1 << OSW_CIPHER_WPA_CCMP) : 0) |
+           (wpa->rsn && wpa->pairwise_tkip ? (1 << OSW_CIPHER_RSN_TKIP) : 0) |
+           (wpa->rsn && wpa->pairwise_ccmp ? (1 << OSW_CIPHER_RSN_CCMP_128) : 0) |
+           (wpa->rsn && wpa->pairwise_ccmp256 ? (1 << OSW_CIPHER_RSN_CCMP_256) : 0) |
+           (wpa->rsn && wpa->pairwise_gcmp ? (1 << OSW_CIPHER_RSN_GCMP_128) : 0) |
+           (wpa->rsn && wpa->pairwise_gcmp256 ? (1 << OSW_CIPHER_RSN_GCMP_256) : 0);
+}
+
+void
+osw_wpa_set_pairwise_bitmask(struct osw_wpa *wpa, uint32_t pairwise)
+{
+    wpa->pairwise_tkip = ((pairwise & (1 << OSW_CIPHER_WPA_TKIP)) |
+                          (pairwise & (1 << OSW_CIPHER_RSN_TKIP))) != 0;
+    wpa->pairwise_ccmp = ((pairwise & (1 << OSW_CIPHER_WPA_CCMP)) |
+                          (pairwise & (1 << OSW_CIPHER_RSN_CCMP_128))) != 0;
+    wpa->pairwise_ccmp256 = (pairwise & (1 << OSW_CIPHER_RSN_CCMP_256)) != 0;
+    wpa->pairwise_gcmp = (pairwise & (1 << OSW_CIPHER_RSN_GCMP_128)) != 0;
+    wpa->pairwise_gcmp256 = (pairwise & (1 << OSW_CIPHER_RSN_GCMP_256)) != 0;
+}
+
+bool
+osw_akm_bitmask_is_wpa(uint32_t akm)
+{
+    return (akm & ((1 << OSW_AKM_WPA_NONE) |
+                   (1 << OSW_AKM_WPA_8021X) |
+                   (1 << OSW_AKM_WPA_PSK))) != 0;
+}
+
+bool
+osw_akm_bitmask_is_rsn(uint32_t akm)
+{
+    return (akm & ~((1 << OSW_AKM_RSN_EAP) |
+                    (1 << OSW_AKM_RSN_PSK) |
+                    (1 << OSW_AKM_RSN_FT_EAP) |
+                    (1 << OSW_AKM_RSN_FT_PSK) |
+                    (1 << OSW_AKM_RSN_EAP_SHA256) |
+                    (1 << OSW_AKM_RSN_PSK_SHA256) |
+                    (1 << OSW_AKM_RSN_SAE) |
+                    (1 << OSW_AKM_RSN_SAE_EXT) |
+                    (1 << OSW_AKM_RSN_FT_SAE) |
+                    (1 << OSW_AKM_RSN_FT_SAE_EXT) |
+                    (1 << OSW_AKM_RSN_EAP_SUITE_B) |
+                    (1 << OSW_AKM_RSN_EAP_SUITE_B_192) |
+                    (1 << OSW_AKM_RSN_FT_EAP_SHA384) |
+                    (1 << OSW_AKM_RSN_FT_PSK_SHA384) |
+                    (1 << OSW_AKM_RSN_PSK_SHA384) |
+                    (1 << OSW_AKM_RSN_EAP_SHA384))) != 0;
 }
 
 #include "osw_types_ut.c"

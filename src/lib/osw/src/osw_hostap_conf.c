@@ -1211,6 +1211,26 @@ osw_hostap_conf_osw_wpa_to_psks(const struct osw_drv_vif_config_ap *ap,
     }
 }
 
+static int osw_hostap_conf_osw_band_to_sae_pwe(enum osw_band band)
+{
+    /* sae_pwe defines which SAE PWE algorithm to use
+     * 0 = hunting-and-pecking loop only
+     * 1 = hash-to-element only
+     * 2 = both hunting-and-pecking loop and hash-to-element enabled  */
+    switch(band)
+    {
+        case OSW_BAND_6GHZ:
+            /* WPA3 specification forbids using SAE Hunt and Pecking mechanism (Section 11.2. point e) */
+            /* Because of backwards compatibility this needs to be 2 (hunting-and-pecking + hash-to-element) */
+        case OSW_BAND_5GHZ:
+        case OSW_BAND_2GHZ:
+        case OSW_BAND_UNDEFINED:
+            return 2;
+    }
+
+    return 2;
+}
+
 void
 osw_hostap_conf_osw_wpa_to_sae(const struct osw_drv_vif_config_ap *ap,
                                struct osw_hostap_conf_ap_config *conf)
@@ -1223,7 +1243,7 @@ osw_hostap_conf_osw_wpa_to_sae(const struct osw_drv_vif_config_ap *ap,
 
     OSW_HOSTAP_CONF_SET_BUF(conf->sae_password, ap->psk_list.list[0].psk.str);
     OSW_HOSTAP_CONF_SET_VAL(conf->sae_require_mfp, 1);
-    if (band == OSW_BAND_6GHZ) OSW_HOSTAP_CONF_SET_VAL(conf->sae_pwe, 2);
+    OSW_HOSTAP_CONF_SET_VAL(conf->sae_pwe, osw_hostap_conf_osw_band_to_sae_pwe(band));
 }
 
 void
@@ -1365,6 +1385,64 @@ osw_hostap_conf_list_free(struct osw_hostap_conf_ap_config *conf)
     conf->anqp_3gpp_cell_net_len = 0;
 }
 
+static char *
+osw_hostap_conf_key_mgmt_from_osw_bitmask(uint32_t akm_bitmask)
+{
+    char *akms = NULL;
+    if (akm_bitmask & (1 << OSW_AKM_RSN_SAE)) strgrow(&akms, "SAE ");
+    if (akm_bitmask & (1 << OSW_AKM_RSN_SAE_EXT)) strgrow(&akms, "SAE-EXT-KEY ");
+    if (akm_bitmask & (1 << OSW_AKM_RSN_FT_SAE)) strgrow(&akms, "FT-SAE ");
+    if (akm_bitmask & (1 << OSW_AKM_RSN_FT_SAE_EXT)) strgrow(&akms, "FT-SAE-EXT-KEY ");
+    if (akms != NULL) strchomp(akms, " ");
+
+    return akms;
+}
+
+static uint32_t
+osw_hostap_conf_key_mgmt_to_osw_bitmask(const char *akms)
+{
+    uint32_t akm_bitmask = 0;
+    char *akms_copy = strdupa(akms ?: "");
+    char *akm;
+    while ((akm = strsep(&akms_copy, " ")) != NULL) {
+        if (strcmp(akm, "SAE") == 0) akm_bitmask |= (1 << OSW_AKM_RSN_SAE);
+        else if (strcmp(akm, "SAE-EXT-KEY") == 0) akm_bitmask |= (1 << OSW_AKM_RSN_SAE_EXT);
+        else if (strcmp(akm, "FT-SAE") == 0) akm_bitmask |= (1 << OSW_AKM_RSN_FT_SAE);
+        else if (strcmp(akm, "FT-SAE-EXT-KEY") == 0) akm_bitmask |= (1 << OSW_AKM_RSN_FT_SAE_EXT);
+    }
+
+    return akm_bitmask;
+}
+
+static char *
+osw_hostap_conf_pairwise_from_osw_bitmask(uint32_t pairwise_bitmask)
+{
+    char *ciphers = NULL;
+    if (pairwise_bitmask & (1 << OSW_CIPHER_RSN_CCMP_128)) strgrow(&ciphers, "CCMP ");
+    if (pairwise_bitmask & (1 << OSW_CIPHER_RSN_GCMP_128)) strgrow(&ciphers, "GCMP ");
+    if (pairwise_bitmask & (1 << OSW_CIPHER_RSN_CCMP_256)) strgrow(&ciphers, "CCMP-256 ");
+    if (pairwise_bitmask & (1 << OSW_CIPHER_RSN_GCMP_256)) strgrow(&ciphers, "GCMP-256 ");
+    if (ciphers != NULL) strchomp(ciphers, " ");
+
+    return ciphers;
+}
+
+static uint32_t
+osw_hostap_conf_pairwise_to_osw_bitmask(const char *ciphers)
+{
+    uint32_t pairwise_bitmask = 0;
+    char *ciphers_copy = strdupa(ciphers ?: "");
+    char *cipher;
+    while ((cipher = strsep(&ciphers_copy, " ")) != NULL) {
+        if (strcmp(cipher, "CCMP") == 0) pairwise_bitmask |= (1 << OSW_CIPHER_RSN_CCMP_128);
+        else if (strcmp(cipher, "GCMP") == 0) pairwise_bitmask |= (1 << OSW_CIPHER_RSN_GCMP_128);
+        else if (strcmp(cipher, "CCMP-256") == 0) pairwise_bitmask |= (1 << OSW_CIPHER_RSN_CCMP_256);
+        else if (strcmp(cipher, "GCMP-256") == 0) pairwise_bitmask |= (1 << OSW_CIPHER_RSN_GCMP_256);
+    }
+
+    return pairwise_bitmask;
+}
+
 bool
 osw_hostap_conf_fill_ap_config(struct osw_drv_conf *drv_conf,
                                const char *phy_name,
@@ -1440,6 +1518,31 @@ osw_hostap_conf_fill_ap_config(struct osw_drv_conf *drv_conf,
 
     /* WPA/IEEE 802.11r configuration         */
     osw_hostap_conf_osw_wpa_to_ft          (ap, conf);
+
+    /* WFA WPA3 RSNO */
+    if (ap->rsn_override_1.enabled) {
+        const struct osw_wpa wpa = { .pmf = ap->rsn_override_1.pmf };
+        const char *akms = strdupafree(osw_hostap_conf_key_mgmt_from_osw_bitmask(ap->rsn_override_1.akm));
+        const char *ciphers = strdupafree(osw_hostap_conf_pairwise_from_osw_bitmask(ap->rsn_override_1.pairwise));
+        const enum osw_hostap_conf_pmf mfp = osw_hostap_conf_pmf_from_osw(&wpa);
+        OSW_HOSTAP_CONF_SET_BUF(conf->rsn_override_key_mgmt, akms);
+        OSW_HOSTAP_CONF_SET_BUF(conf->rsn_override_pairwise, ciphers);
+        OSW_HOSTAP_CONF_SET_VAL(conf->rsn_override_mfp, mfp);
+    }
+
+    if (ap->rsn_override_2.enabled) {
+        const struct osw_wpa wpa = { .pmf = ap->rsn_override_2.pmf };
+        const char *akms = strdupafree(osw_hostap_conf_key_mgmt_from_osw_bitmask(ap->rsn_override_2.akm));
+        const char *ciphers = strdupafree(osw_hostap_conf_pairwise_from_osw_bitmask(ap->rsn_override_2.pairwise));
+        const enum osw_hostap_conf_pmf mfp = osw_hostap_conf_pmf_from_osw(&wpa);
+        OSW_HOSTAP_CONF_SET_BUF(conf->rsn_override_key_mgmt_2, akms);
+        OSW_HOSTAP_CONF_SET_BUF(conf->rsn_override_pairwise_2, ciphers);
+        OSW_HOSTAP_CONF_SET_VAL(conf->rsn_override_mfp_2, mfp);
+    }
+
+    if (ap->rsn_override_omit_rsnxe) {
+        OSW_HOSTAP_CONF_SET_VAL(conf->rsn_override_omit_rsnxe, true);
+    }
 
     return true;
 }
@@ -1586,6 +1689,15 @@ osw_hostap_conf_generate_ap_config_bufs(struct osw_hostap_conf_ap_config *conf)
 
     /* Radio measurements / location */
     CONF_APPEND(rrm_neighbor_report, "%d");
+
+    /* WFA WPA3 RSNO */
+    CONF_APPEND(rsn_override_key_mgmt, "%s");
+    CONF_APPEND(rsn_override_pairwise, "%s");
+    CONF_APPEND(rsn_override_mfp, "%d");
+    CONF_APPEND(rsn_override_key_mgmt_2, "%s");
+    CONF_APPEND(rsn_override_pairwise_2, "%s");
+    CONF_APPEND(rsn_override_mfp_2, "%d");
+    CONF_APPEND(rsn_override_omit_rsnxe, "%d");
 
     CONF_APPEND(use_driver_iface_addr, "%d");
     CONF_APPEND_BUF(conf->radius_buf);
@@ -1826,6 +1938,44 @@ osw_hostap_conf_fill_ap_state_acl(const struct osw_hostap_conf_ap_state_bufs *bu
     FREE(cpy_accept_acl);
 }
 
+static void
+osw_hostap_conf_parse_ap_state_rsno(struct osw_rsn_override *rsno,
+                                    const char *key_mgmt,
+                                    const char *pairwise,
+                                    const char *mfp)
+{
+    if (key_mgmt == NULL) {
+        memset(rsno, 0, sizeof(*rsno));
+        rsno->enabled = false;
+        return;
+    }
+
+    rsno->enabled = true;
+    rsno->akm = osw_hostap_conf_key_mgmt_to_osw_bitmask(key_mgmt);
+    rsno->pairwise = osw_hostap_conf_pairwise_to_osw_bitmask(pairwise);
+    rsno->pmf = osw_hostap_conf_pmf_to_osw(atoi(mfp));
+}
+
+static void
+osw_hostap_conf_fill_ap_state_rsno(struct osw_drv_vif_state_ap *ap, const char *config)
+{
+    config = config ?: "";
+
+    osw_hostap_conf_parse_ap_state_rsno(&ap->rsn_override_1,
+                                        ini_geta(config, "rsn_override_key_mgmt"),
+                                        ini_geta(config, "rsn_override_pairwise"),
+                                        ini_geta(config, "rsn_override_mfp"));
+
+    osw_hostap_conf_parse_ap_state_rsno(&ap->rsn_override_2,
+                                        ini_geta(config, "rsn_override_key_mgmt_2"),
+                                        ini_geta(config, "rsn_override_pairwise_2"),
+                                        ini_geta(config, "rsn_override_mfp_2"));
+
+    const char *rsn_override_omit_rsnxe = ini_geta(config, "rsn_override_omit_rsnxe");
+    if (rsn_override_omit_rsnxe != NULL) {
+        ap->rsn_override_omit_rsnxe = atoi(rsn_override_omit_rsnxe) == 1;
+    }
+}
 
 void
 osw_hostap_conf_fill_ap_state(const struct osw_hostap_conf_ap_state_bufs *bufs,
@@ -1955,6 +2105,7 @@ osw_hostap_conf_fill_ap_state(const struct osw_hostap_conf_ap_state_bufs *bufs,
     hapd_util_hapd_mib_to_radius_list(bufs, &ap->radius_list, &ap->acct_list);
     hapd_util_hapd_conf_to_passpoint(bufs, &ap->passpoint);
     hapd_util_hapd_conf_ft_encry_key_get(bufs, vstate);
+    osw_hostap_conf_fill_ap_state_rsno(ap, config);
 }
 
 #include "osw_hostap_conf_ut.c.h"

@@ -833,6 +833,10 @@ end:
 static void
 ow_steer_bm_vif_untracked_client_free(struct ow_steer_bm_vif_untracked_client *untracked)
 {
+    for (size_t i = 0; untracked->stats->event_stats_count > i; i++) {
+        struct ow_steer_bm_event_stats *event_stats = &untracked->stats->event_stats[i];
+        FREE(event_stats->assoc_ies);
+    }
     FREE(untracked->stats);
     FREE(untracked);
 }
@@ -1324,11 +1328,11 @@ ow_steer_bm_report_gen(uint8_t **buf,
 #endif
 }
 
-static void
+static uint32_t
 ow_steer_bm_report_send(void)
 {
     uint8_t *buf = NULL;
-    uint32_t len;
+    uint32_t len = 0;
     const bool generated = ow_steer_bm_report_gen(&buf, &len);
     if (generated == false) goto free_report;
     if (len <= 0) goto free_report;
@@ -1341,6 +1345,7 @@ ow_steer_bm_report_send(void)
      */
 free_report:
     FREE(buf);
+    return len;
 }
 
 #define OW_STEER_BM_STA_KICK_SET_DISASSOC_IMMINENT(STA, NAME) \
@@ -2837,6 +2842,8 @@ ow_steer_bm_sta_recalc_pre_assoc_2g_policy_config(struct ow_steer_bm_sta *sta)
         return NULL;
     if (client->pref_5g_pre_assoc_block_timeout_msecs.cur == NULL)
         return NULL;
+    if (client->pref_5g.cur == NULL)
+        return NULL;
 
     switch (*client->pref_5g.cur) {
         case OW_STEER_BM_CLIENT_PREF_5G_NEVER:
@@ -4027,6 +4034,24 @@ ow_steer_bm_group_recalc(struct ow_steer_bm_group *group)
 }
 
 static void
+ow_steer_bm_client_free_stats(struct ow_steer_bm_client *client)
+{
+    ASSERT(client != NULL, "");
+
+    struct ow_steer_bm_vif_stats *stats;
+    struct ow_steer_bm_vif_stats *tmp_stats;
+
+    ds_tree_foreach_safe(&client->stats_tree, stats, tmp_stats) {
+        unsigned int i;
+        for (i = 0; i < stats->event_stats_count; i++) {
+            FREE(stats->event_stats[i].assoc_ies);
+        }
+        ds_tree_remove(&client->stats_tree, stats);
+        FREE(stats);
+    }
+}
+
+static void
 ow_steer_bm_client_free(struct ow_steer_bm_client *client)
 {
     ASSERT(client != NULL, "");
@@ -4049,6 +4074,7 @@ ow_steer_bm_client_free(struct ow_steer_bm_client *client)
     OW_STEER_BM_MEM_ATTR_FREE(client, neighbor_list_filter_by_beacon_report);
     OW_STEER_BM_MEM_ATTR_FREE(client, pref_5g_pre_assoc_block_timeout_msecs);
     OW_STEER_BM_MEM_ATTR_FREE(client, cs_mode);
+    ow_steer_bm_client_free_stats(client);
     ow_steer_bm_btm_params_free(client->sc_btm_params);
     ow_steer_bm_btm_params_free(client->steering_btm_params);
     ow_steer_bm_btm_params_free(client->sticky_btm_params);
@@ -4092,17 +4118,7 @@ ow_steer_bm_stats_free_client_stats(void)
     struct ow_steer_bm_client *client;
 
     ds_tree_foreach(&g_client_tree, client) {
-        struct ow_steer_bm_vif_stats *stats;
-        struct ow_steer_bm_vif_stats *tmp_stats;
-
-        ds_tree_foreach_safe(&client->stats_tree, stats, tmp_stats) {
-            unsigned int i;
-            for (i = 0; i < stats->event_stats_count; i++) {
-                FREE(stats->event_stats[i].assoc_ies);
-            }
-            ds_tree_remove(&client->stats_tree, stats);
-            FREE(stats);
-        }
+        ow_steer_bm_client_free_stats(client);
     }
 }
 
@@ -4443,11 +4459,11 @@ ow_steer_bm_state_obs_vif_probe_cb(struct osw_state_observer *self,
 static void
 ow_steer_bm_recalc_sta_bitrate(struct ow_steer_bm_sta *sta,
                                const char *vif_name,
-                               const unsigned int data_rx,
-                               const unsigned int data_tx)
+                               const uint64_t data_rx,
+                               const uint64_t data_tx)
 {
-    unsigned int data_bits = (data_rx + data_tx) * 8;
-    unsigned int bitrate = data_bits / OW_STEER_BM_BITRATE_STATS_INTERVAL;
+    uint64_t data_bits = (data_rx + data_tx) * 8;
+    uint64_t bitrate = data_bits / OW_STEER_BM_BITRATE_STATS_INTERVAL;
     bool activity = false;
 
     if (bitrate > OW_STEER_BM_DEFAULT_BITRATE_THRESHOLD) activity = true;
@@ -4480,17 +4496,18 @@ ow_steer_bm_stats_report_cb(enum osw_stats_id id,
     if (WARN_ON(tb[OSW_STATS_STA_MAC_ADDRESS] == NULL) ||
         WARN_ON(tb[OSW_STATS_STA_VIF_NAME] == NULL))
         return;
-    if (tb[OSW_STATS_STA_TX_BYTES] == NULL &&
-        tb[OSW_STATS_STA_RX_BYTES] == NULL)
+
+    if (tb[OSW_STATS_STA_TX_BYTES_64] == NULL &&
+        tb[OSW_STATS_STA_RX_BYTES_64] == NULL)
         return;
 
     sta_addr = osw_tlv_get_data(tb[OSW_STATS_STA_MAC_ADDRESS]);
     vif_name = osw_tlv_get_string(tb[OSW_STATS_STA_VIF_NAME]);
 
-    if (tb[OSW_STATS_STA_TX_BYTES] != NULL || tb[OSW_STATS_STA_RX_BYTES] != NULL) {
+    if (tb[OSW_STATS_STA_TX_BYTES_64] != NULL || tb[OSW_STATS_STA_RX_BYTES_64] != NULL) {
         struct ow_steer_bm_sta *sta;
-        const unsigned int data_rx = tb[OSW_STATS_STA_RX_BYTES] != NULL ? osw_tlv_get_u32(tb[OSW_STATS_STA_RX_BYTES]) : 0;
-        const unsigned int data_tx = tb[OSW_STATS_STA_TX_BYTES] != NULL ? osw_tlv_get_u32(tb[OSW_STATS_STA_TX_BYTES]) : 0;
+        const uint64_t data_rx = tb[OSW_STATS_STA_RX_BYTES_64] != NULL ? osw_tlv_get_u64(tb[OSW_STATS_STA_RX_BYTES_64]) : 0;
+        const uint64_t data_tx = tb[OSW_STATS_STA_TX_BYTES_64] != NULL ? osw_tlv_get_u64(tb[OSW_STATS_STA_TX_BYTES_64]) : 0;
 
         ds_dlist_foreach(&g_sta_list, sta) {
             if (osw_hwaddr_cmp(&sta->addr, sta_addr) != 0)
@@ -4502,7 +4519,6 @@ ow_steer_bm_stats_report_cb(enum osw_stats_id id,
                                            data_tx);
         }
     }
-
 }
 
 static radio_type_t
@@ -4785,7 +4801,11 @@ static void
 ow_steer_bm_proc_stats_timer_cb(struct osw_timer *timer)
 {
     ow_steer_bm_build_report();
-    ow_steer_bm_report_send();
+    for (;;) {
+        const uint32_t sent = ow_steer_bm_report_send();
+        const bool empty = (sent == 0);
+        if (empty == true) break;
+    }
     /* this timer makes up for drift */
     const uint64_t at = timer->at_nsec + OSW_TIME_SEC(OW_STEER_BM_DEFAULT_REPORTING_TIME);
     osw_timer_arm_at_nsec(&g_stats_timer, at);

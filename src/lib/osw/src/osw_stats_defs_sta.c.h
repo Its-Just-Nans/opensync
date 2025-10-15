@@ -27,6 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /* FIXME: Use U64 for some of the stats */
 
 #include <osw_state.h>
+#include <log.h>
 
 static const struct osw_tlv_policy
 g_osw_stats_tp_sta[OSW_STATS_STA_MAX__] = {
@@ -35,15 +36,18 @@ g_osw_stats_tp_sta[OSW_STATS_STA_MAX__] = {
     [OSW_STATS_STA_MAC_ADDRESS] = { .type = OSW_TLV_HWADDR },
     [OSW_STATS_STA_SNR_DB] = { .type = OSW_TLV_U32 },
     [OSW_STATS_STA_TX_BYTES] = { .type = OSW_TLV_U32 },
+    [OSW_STATS_STA_TX_BYTES_64] = { .type = OSW_TLV_U64 },
     [OSW_STATS_STA_TX_FRAMES] = { .type = OSW_TLV_U32 },
     [OSW_STATS_STA_TX_RETRIES] = { .type = OSW_TLV_U32 },
     [OSW_STATS_STA_TX_ERRORS] = { .type = OSW_TLV_U32 },
     [OSW_STATS_STA_TX_RATE_MBPS] = { .type = OSW_TLV_U32 },
     [OSW_STATS_STA_RX_BYTES] = { .type = OSW_TLV_U32 },
+    [OSW_STATS_STA_RX_BYTES_64] = { .type = OSW_TLV_U64 },
     [OSW_STATS_STA_RX_FRAMES] = { .type = OSW_TLV_U32 },
     [OSW_STATS_STA_RX_RETRIES] = { .type = OSW_TLV_U32 },
     [OSW_STATS_STA_RX_ERRORS] = { .type = OSW_TLV_U32 },
     [OSW_STATS_STA_RX_RATE_MBPS] = { .type = OSW_TLV_U32 },
+    [OSW_STATS_STA_VIF_ADDRESS] = { .type = OSW_TLV_HWADDR },
 };
 
 static const struct osw_tlv_merge_policy
@@ -53,15 +57,18 @@ g_osw_stats_mp_sta[OSW_STATS_STA_MAX__] = {
     [OSW_STATS_STA_MAC_ADDRESS] = { .type = OSW_TLV_OP_OVERWRITE },
     [OSW_STATS_STA_SNR_DB] = { .type = OSW_TLV_OP_OVERWRITE },
     [OSW_STATS_STA_TX_BYTES] = { .type = OSW_TLV_OP_ACCUMULATE },
+    [OSW_STATS_STA_TX_BYTES_64] = { .type = OSW_TLV_OP_ACCUMULATE },
     [OSW_STATS_STA_TX_FRAMES] = { .type = OSW_TLV_OP_ACCUMULATE },
     [OSW_STATS_STA_TX_RETRIES] = { .type = OSW_TLV_OP_ACCUMULATE },
     [OSW_STATS_STA_TX_ERRORS] = { .type = OSW_TLV_OP_ACCUMULATE },
     [OSW_STATS_STA_TX_RATE_MBPS] = { .type = OSW_TLV_OP_OVERWRITE },
     [OSW_STATS_STA_RX_BYTES] = { .type = OSW_TLV_OP_ACCUMULATE },
+    [OSW_STATS_STA_RX_BYTES_64] = { .type = OSW_TLV_OP_ACCUMULATE },
     [OSW_STATS_STA_RX_FRAMES] = { .type = OSW_TLV_OP_ACCUMULATE },
     [OSW_STATS_STA_RX_RETRIES] = { .type = OSW_TLV_OP_ACCUMULATE },
     [OSW_STATS_STA_RX_ERRORS] = { .type = OSW_TLV_OP_ACCUMULATE },
     [OSW_STATS_STA_RX_RATE_MBPS] = { .type = OSW_TLV_OP_OVERWRITE },
+    [OSW_STATS_STA_VIF_ADDRESS] = { .type = OSW_TLV_OP_OVERWRITE },
 };
 
 static void
@@ -83,6 +90,26 @@ osw_stats_defs_sta_postprocess_cb(struct osw_tlv *data)
             const struct osw_hwaddr *vif_addr = &vif_info->drv_state->mac_addr;
             osw_tlv_put_hwaddr(data, OSW_STATS_STA_VIF_ADDRESS, vif_addr);
         }
+    }
+
+    if (tb[OSW_STATS_STA_RX_BYTES] && !tb[OSW_STATS_STA_RX_BYTES_64]) {
+        const uint32_t rx_bytes = osw_tlv_get_u32(tb[OSW_STATS_STA_RX_BYTES]);
+        osw_tlv_put_u64(data, OSW_STATS_STA_RX_BYTES_64, (uint64_t)rx_bytes);
+    }
+
+    if (!tb[OSW_STATS_STA_RX_BYTES] && tb[OSW_STATS_STA_RX_BYTES_64]) {
+        const uint64_t rx_bytes = osw_tlv_get_u64(tb[OSW_STATS_STA_RX_BYTES_64]);
+        osw_tlv_put_u32(data, OSW_STATS_STA_RX_BYTES, (uint32_t)rx_bytes);
+    }
+
+    if (tb[OSW_STATS_STA_TX_BYTES] && !tb[OSW_STATS_STA_TX_BYTES_64]) {
+        const uint32_t tx_bytes = osw_tlv_get_u32(tb[OSW_STATS_STA_TX_BYTES]);
+        osw_tlv_put_u64(data, OSW_STATS_STA_TX_BYTES_64, (uint64_t)tx_bytes);
+    }
+
+    if (!tb[OSW_STATS_STA_TX_BYTES] && tb[OSW_STATS_STA_TX_BYTES_64]) {
+        const uint64_t tx_bytes = osw_tlv_get_u64(tb[OSW_STATS_STA_TX_BYTES_64]);
+        osw_tlv_put_u32(data, OSW_STATS_STA_TX_BYTES, (uint32_t)tx_bytes);
     }
 }
 

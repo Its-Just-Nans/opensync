@@ -236,6 +236,9 @@ void process_line(const char *line)
     char *m, *d, *tm, *proc, *sev, *mod, *pid;
     char *sptr, *e;
     char *color_start = "", *color_end = "";
+#if defined(CONFIG_LOGREAD_OSYNC_LOG_HAS_WEEKDAY)
+    char *wd;
+#endif /* defined(CONFIG_LOGREAD_OSYNC_LOG_HAS_WEEKDAY) */
 #if defined(CONFIG_LOGREAD_OSYNC_LOG_HAS_YEAR)
     char *yr;
 #endif /* defined(CONFIG_LOGREAD_OSYNC_LOG_HAS_YEAR) */
@@ -250,7 +253,12 @@ void process_line(const char *line)
     do
     {
         // Parse common tokens from log output.  If missing, skip line
-        if (!(m = strtok_r(copy, " \t", &sptr))) break;   // Month
+#if defined(CONFIG_LOGREAD_OSYNC_LOG_HAS_WEEKDAY)
+        if (!(wd = strtok_r(copy, " \t", &sptr))) break;  // Weekday
+        if (!(m = strtok_r(NULL, " \t", &sptr))) break;   // Month
+#else
+        if (!(m = strtok_r(copy, " \t", &sptr))) break;  // Month
+#endif                                                    /* defined(CONFIG_LOGREAD_OSYNC_LOG_HAS_WEEKDAY) */
         if (!(d = strtok_r(NULL, " \t", &sptr))) break;   // Day
         if (!(tm = strtok_r(NULL, " \t", &sptr))) break;  // Time
 #if defined(CONFIG_LOGREAD_OSYNC_LOG_HAS_YEAR)
@@ -347,10 +355,14 @@ void process_line(const char *line)
             {
                 json = json_object();
             }
+            buf[0] = '\0';  // Initialize buffer
+#if defined(CONFIG_LOGREAD_OSYNC_LOG_HAS_WEEKDAY)
+            snprintf(buf, sizeof(buf), "%s ", wd);
+#endif
 #if defined(CONFIG_LOGREAD_OSYNC_LOG_HAS_YEAR)
-            snprintf(buf, sizeof(buf) - 1, "%s %s %s %s", m, d, tm, yr);  // re-create timestamp
+            snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "%s %s %s %s", m, d, tm, yr);  // re-create timestamp
 #else  /* not defined(CONFIG_LOGREAD_OSYNC_LOG_HAS_YEAR) */
-            snprintf(buf, sizeof(buf) - 1, "%s %s %s", m, d, tm);  // re-create timestamp
+            snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "%s %s %s", m, d, tm);  // re-create timestamp
 #endif /* not defined(CONFIG_LOGREAD_OSYNC_LOG_HAS_YEAR) */
             json_object_set_new(json, "@version", json_integer(1));
             json_object_set_new(json, "message_tm", json_string(buf));

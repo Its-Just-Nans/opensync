@@ -45,17 +45,7 @@ UNIT_SRC += src/we_dpi_externals.c
 UNIT_CFLAGS += -I$(UNIT_PATH)/inc
 UNIT_CFLAGS += -Isrc/lib/we
 
-UNIT_CFLAGS += -I$(UNIT_PATH)/inc
-UNIT_CFLAGS += -I$(TOP_DIR)/src/lib/we/inc
-UNIT_CFLAGS += -I$(TOP_DIR)/src/lib/rts/inc
-
-UNIT_LDFLAGS := -Wl,--whole-archive
-UNIT_LDFLAGS += $(UNIT_FILES_/src/lib/rts)
-UNIT_LDFLAGS += $(UNIT_FILES_/src/lib/we)
-UNIT_LDFLAGS += -Wl,--no-whole-archive
-
 ifeq ($(CONFIG_WALLEYE_RELEASE_BUILD),y)
-UNIT_CFLAGS += -DNDEBUG # Disable asserts
 UNIT_CFLAGS += -O2 -nostdlib -nodefaultlibs -fno-stack-protector # optimization
 endif
 UNIT_LDFLAGS += -Wl,-rpath=$(INSTALL_PREFIX)/lib

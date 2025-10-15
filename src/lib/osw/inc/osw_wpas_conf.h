@@ -44,6 +44,7 @@ struct osw_hostap_conf_sta_global_config {
     OSW_HOSTAP_CONF_DECL_BOOL(scan_cur_freq);
     OSW_HOSTAP_CONF_DECL_BOOL(disallow_dfs);
     OSW_HOSTAP_CONF_DECL_BOOL(interworking);
+    OSW_HOSTAP_CONF_DECL_BOOL(rsn_overriding);
 };
 
 struct osw_hostap_conf_sta_network_config {

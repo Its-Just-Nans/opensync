@@ -737,10 +737,12 @@ ct_stats_send_aggr_report(fcm_collect_plugin_t *collector)
     n_flows = net_md_get_total_flows(aggr);
     if (n_flows <= 0)
     {
+        LOGT("%s: No flows to report", __func__);
         net_md_reset_aggregator(aggr);
         return;
     }
 
+    LOGT("%s: Sending report with %zu flows", __func__, n_flows);
     ret = aggr->send_report(aggr, collector->mqtt_topic);
     if (ret == false)
     {
@@ -1001,6 +1003,7 @@ ct_stats_plugin_exit(fcm_collect_plugin_t *collector)
     /* free the aggregator */
     aggr = ct_stats->aggr;
     net_md_close_active_window(aggr);
+    net_md_free_flow_tree(aggr->five_tuple_flows);
     aggr->five_tuple_flows = NULL;
     aggr->eth_pairs = NULL;
     net_md_free_aggregator(aggr);

@@ -503,6 +503,28 @@ osw_confsync_build_vif_ap_debug(const char *phy,
         *notified = true;
     }
 
+    if (cmd->rsn_override_1_changed) {
+        LOGI("osw: confsync: %s/%s: rsn_override_1: "OSW_RSN_OVERRIDE_FMT" -> "OSW_RSN_OVERRIDE_FMT,
+             phy, vif,
+             OSW_RSN_OVERRIDE_ARG(&state->rsn_override_1),
+             OSW_RSN_OVERRIDE_ARG(&conf->rsn_override_1));
+        *notified = true;
+    }
+
+    if (cmd->rsn_override_2_changed) {
+        LOGI("osw: confsync: %s/%s: rsn_override_2: "OSW_RSN_OVERRIDE_FMT" -> "OSW_RSN_OVERRIDE_FMT,
+             phy, vif,
+             OSW_RSN_OVERRIDE_ARG(&state->rsn_override_2),
+             OSW_RSN_OVERRIDE_ARG(&conf->rsn_override_2));
+        *notified = true;
+    }
+
+    if (cmd->rsn_override_omit_rsnxe_changed) {
+        LOGI("osw: confsync: %s/%s: rsn_override_omit_rsnxe: %d -> %d",
+             phy, vif, state->rsn_override_omit_rsnxe, conf->rsn_override_omit_rsnxe);
+        *notified = true;
+    }
+
     if (cmd->mcast2ucast_changed) {
         LOGI("osw: confsync: %s/%s: mcast2ucast: %d -> %d",
              phy, vif, state->mcast2ucast, conf->mcast2ucast);
@@ -1232,6 +1254,9 @@ osw_confsync_vif_ap_mark_changed(struct osw_drv_vif_config *dvif,
     dvif->u.ap.oce_min_rssi_enable_changed = all || (cvif->u.ap.oce && (svif->u.ap.oce_min_rssi_enable != cvif->u.ap.oce_min_rssi_enable));
     dvif->u.ap.oce_retry_delay_sec_changed = all || (cvif->u.ap.oce && (svif->u.ap.oce_retry_delay_sec != cvif->u.ap.oce_retry_delay_sec));
     dvif->u.ap.max_sta_changed = all || (svif->u.ap.max_sta != cvif->u.ap.max_sta);
+    dvif->u.ap.rsn_override_1_changed = all || (memcmp(&svif->u.ap.rsn_override_1, &cvif->u.ap.rsn_override_1, sizeof(svif->u.ap.rsn_override_1)) != 0);
+    dvif->u.ap.rsn_override_2_changed = all || (memcmp(&svif->u.ap.rsn_override_2, &cvif->u.ap.rsn_override_2, sizeof(svif->u.ap.rsn_override_2)) != 0);
+    dvif->u.ap.rsn_override_omit_rsnxe_changed = all || (svif->u.ap.rsn_override_omit_rsnxe != cvif->u.ap.rsn_override_omit_rsnxe);
 
     dvif->changed |= dvif->u.ap.beacon_interval_tu_changed;
     dvif->changed |= dvif->u.ap.isolated_changed;
@@ -1269,6 +1294,9 @@ osw_confsync_vif_ap_mark_changed(struct osw_drv_vif_config *dvif,
     dvif->changed |= dvif->u.ap.oce_min_rssi_enable_changed;
     dvif->changed |= dvif->u.ap.oce_retry_delay_sec_changed;
     dvif->changed |= dvif->u.ap.max_sta_changed;
+    dvif->changed |= dvif->u.ap.rsn_override_1_changed;
+    dvif->changed |= dvif->u.ap.rsn_override_2_changed;
+    dvif->changed |= dvif->u.ap.rsn_override_omit_rsnxe_changed;
 
     if (all == false && dvif->enabled && dvif->u.ap.channel.control_freq_mhz != 0 && svif->status == OSW_VIF_ENABLED) {
         const struct osw_channel_state *cs = sphy->channel_states;
@@ -1495,6 +1523,9 @@ osw_confsync_build_drv_conf_vif_ap(struct osw_drv_vif_config *dvif,
     dvif->u.ap.oce_min_rssi_enable = cvif->u.ap.oce_min_rssi_enable;
     dvif->u.ap.oce_retry_delay_sec = cvif->u.ap.oce_retry_delay_sec;
     dvif->u.ap.max_sta = cvif->u.ap.max_sta;
+    dvif->u.ap.rsn_override_1 = cvif->u.ap.rsn_override_1;
+    dvif->u.ap.rsn_override_2 = cvif->u.ap.rsn_override_2;
+    dvif->u.ap.rsn_override_omit_rsnxe = cvif->u.ap.rsn_override_omit_rsnxe;
 
     dvif->u.ap.wps_pbc = cvif->u.ap.wps_pbc;
     dvif->u.ap.multi_ap = cvif->u.ap.multi_ap;

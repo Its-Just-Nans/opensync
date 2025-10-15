@@ -864,8 +864,10 @@ ow_steer_policy_snr_xing_set_config(struct ow_steer_policy_snr_xing *xing,
     ASSERT(xing != NULL, "");
 
     const bool changed = (ow_steer_policy_snr_xing_config_is_equal(xing->config, config) == false);
-    if (changed == false)
+    if (changed == false) {
+        ow_steer_policy_snr_xing_free_config(config);
         return;
+    }
 
     LOGI(LOG_WITH_POLICY_PREFIX(xing->base, "reconfiguring"));
 

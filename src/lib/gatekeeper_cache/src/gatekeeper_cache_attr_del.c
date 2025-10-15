@@ -200,7 +200,7 @@ gk_free_cache_tree(ds_tree_t *tree)
 void
 gk_cache_cleanup(void)
 {
-    struct attr_cache *attr_entry;
+    struct attr_cache *attr_entry, *remove;
     struct gk_cache_mgr *mgr;
     ds_tree_t *tree;
 
@@ -210,10 +210,14 @@ gk_cache_cleanup(void)
     tree = &mgr->per_device_tree;
     gk_free_cache_tree(tree);
     tree = &mgr->location_wide_cache;
-    ds_tree_foreach(tree, attr_entry)
+
+    attr_entry = ds_tree_head(tree);
+    while (attr_entry != NULL)
     {
-        gkc_free_attr_entry(attr_entry, attr_entry->type);
-        ds_tree_remove(tree, attr_entry);
+        remove = attr_entry;
+        attr_entry = ds_tree_next(tree, attr_entry);
+        gkc_free_attr_entry(remove, remove->type);
+        ds_tree_remove(tree, remove);
     }
 
     mgr->total_entry_count = 0;
@@ -358,7 +362,6 @@ gkc_cleanup_ttl_attribute_tree(struct gkc_del_info_s *gk_del_info)
 
         /* decrement the cache entries counter */
         gkc_remove_entry(gk_del_info->tree, remove);
-        mgr->total_entry_count--;
     }
 }
 

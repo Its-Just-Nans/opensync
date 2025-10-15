@@ -396,7 +396,7 @@ static void ow_mld_redir_mld_notify_observers(ow_mld_redir_mld_t *mld)
     {
         n++;
         vifs = REALLOC(vifs, (n + 1) * sizeof(*vifs));
-        vifs[n - 1] = STRDUP(vif->vif_name);
+        vifs[n - 1] = strdupa(vif->vif_name);
         vifs[n - 0] = NULL;
     }
     ds_tree_foreach (&mld->m->observers, o)

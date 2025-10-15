@@ -40,6 +40,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /* unit */
 #include <osw_drv.h>
+#include <osw_state.h>
 #include <osw_types.h>
 #include <osw_wpas_conf.h>
 #include <osw_hostap_common.h>
@@ -52,6 +53,9 @@ osw_wpas_util_fill_global_block(struct osw_drv_vif_config_sta *sta,
     /* FIXME - this hardcodes ctrl path! Get it from the caller instead */
     OSW_HOSTAP_CONF_SET_BUF(conf->ctrl_interface, "/var/run/wpa_supplicant");
     OSW_HOSTAP_CONF_SET_VAL(conf->scan_cur_freq, true);
+
+    /* Enable HnP and H2E PWE mechanisms */
+    OSW_HOSTAP_CONF_SET_VAL(conf->sae_pwe, 2);
 }
 
 static void
@@ -364,6 +368,7 @@ osw_hostap_conf_generate_sta_config_bufs(struct osw_hostap_conf_sta_config *conf
     CONF_APPEND(scan_cur_freq, "%d");
     CONF_APPEND(disallow_dfs, "%d");
     CONF_APPEND(interworking, "%d");
+    CONF_APPEND(rsn_overriding, "%d");
     CONF_APPEND_BUF(config->extra_buf);
 
     /* network block */
@@ -458,6 +463,16 @@ osw_hostap_conf_compute_bridge(const struct osw_drv_vif_sta_network *first)
     return name1;
 }
 
+static bool
+osw_wpas_conf_is_rsno_supported(const char *phy_name)
+{
+    const struct osw_state_phy_info *phy_info = osw_state_phy_lookup(phy_name);
+    if (phy_info == NULL) return false;
+    if (phy_info->drv_state == NULL) return false;
+
+    return phy_info->drv_state->rsno_supported;
+}
+
 bool
 osw_hostap_conf_fill_sta_config(struct osw_drv_conf *drv_conf,
                                 const char *phy_name,
@@ -483,6 +498,15 @@ osw_hostap_conf_fill_sta_config(struct osw_drv_conf *drv_conf,
 
     STRSCPY_WARN(conf->bridge_if_name.buf, osw_hostap_conf_compute_bridge(network));
     osw_wpas_util_fill_global_block(sta, &conf->global);
+
+    /* This is intentionally not setting `false` in the other case because if
+     * RSNO is not supported the `rsn_overriding` itself may not be recognized
+     * by wpa_supplicant. Non-recognizable config knobs cause wpa_supplicant to
+     * not start at all. That's why non-support is handled by omission.
+     */
+    if (osw_wpas_conf_is_rsno_supported(phy_name)) {
+        OSW_HOSTAP_CONF_SET_VAL(conf->global.rsn_overriding, true);
+    }
 
     if (network != NULL) {
         wpas_network = CALLOC(1, sizeof(struct osw_hostap_conf_sta_network_config));

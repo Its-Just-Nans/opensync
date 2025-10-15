@@ -39,3 +39,32 @@ for F in $INSTALL_PREFIX/scripts/healthcheck.funcs.d/*.sh; do
     fi
 done
 
+exit_health_bss_driver_mismatch()
+{
+    exit 91
+}
+
+exit_health_bss_down()
+{
+    exit 92
+}
+
+exit_health_bss_up_not_associated()
+{
+    exit 93
+}
+
+append_fatal_reason(){
+    append_reason=""
+    case "$1" in
+        "91")
+            append_reason="Possibly handled by different driver"
+            ;;
+        "92")
+            append_reason="BSS interface is not up "
+            ;;
+        "93")
+            append_reason="BSS interface is up but not associated"
+            ;;
+    esac
+}

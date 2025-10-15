@@ -38,10 +38,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <memutil.h>
 #include <ds_tree.h>
 #include <const.h>
+#include <stdint.h>
 #include <util.h>
 #include <log.h>
 #include <os.h>
 #include <ev.h>
+#include "ow_conf_rsno.h"
 
 #define OW_CONF_DEFAULT_BEACON_INTERVAL_TU 100
 
@@ -680,6 +682,19 @@ ow_conf_conf_mutate_fast_transition(struct ow_conf_vif *ow_vif,
     if (ow_vif->ap_ft_psk_generate_local != NULL) osw_vif->u.ap.ft_psk_generate_local = *ow_vif->ap_ft_psk_generate_local;
 }
 
+static bool
+ow_conf_phy_is_rsno_supported(const struct ow_conf_phy *ow_phy)
+{
+    if (ow_phy == NULL) return false;
+    if (ow_phy->phy_name == NULL) return false;
+
+    const struct osw_state_phy_info *phy_info = osw_state_phy_lookup(ow_phy->phy_name);
+    if (phy_info == NULL) return false;
+    if (phy_info->drv_state == NULL) return false;
+
+    return phy_info->drv_state->rsno_supported;
+}
+
 static void
 ow_conf_conf_mutate_vif_ap(struct ow_conf *self,
                            struct ow_conf_phy *ow_phy,
@@ -778,6 +793,12 @@ ow_conf_conf_mutate_vif_ap(struct ow_conf *self,
         LOGD("%s: beacon interval undefined, setting default: %d",
              vif_name,
              osw_vif->u.ap.beacon_interval_tu);
+    }
+
+    const bool rsno_supported = ow_conf_phy_is_rsno_supported(ow_phy);
+    if (rsno_supported) {
+        const ow_conf_rsno_mode_t rsno_mode = ow_conf_rsno_mode_get(osw_vif);
+        ow_conf_rsno_mutate_vif_ap(osw_vif, rsno_mode);
     }
 }
 

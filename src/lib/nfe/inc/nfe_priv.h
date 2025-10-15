@@ -39,8 +39,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define EXPORT __attribute__((visibility("default")))
 
+#if defined (CONFIG_LIB_NFE_RELEASE_BUILD)
+#define nfe_assert(expr) ((void)0)
+#define nfe_static_assert(cond, msg) /* disable uclibc _Static_assert(cond, msg) */
+#else
 #define nfe_assert assert
 #define nfe_static_assert(cond, msg) /* disable uclibc _Static_assert(cond, msg) */
+#endif
 
 #define nfe_min(x,y) ({ \
     typeof(x) _x = (x); \

@@ -46,9 +46,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /* Certificate expiration check period in seconds (1 hour by default) */
 #define PKIM_CERT_RENEW_CHECK (60 * 60)
 
-/* Time before expiration to start renewing certs in seconds, 60 days by default */
-#define PKIM_CERT_RENEW_TIME (60 * 24 * 60 * 60)
-
 /* Amount of time to wait if renewal is overdue in seconds, 1 hour by default */
 #define PKIM_CERT_RENEW_WAIT (1 * 60 * 60)
 
@@ -70,7 +67,9 @@ struct pkim_cert
     arena_frame_t pc_state_frame; /* Per-state arena frame */
     const char *pc_label;         /* Certificate identifier */
     pkim_cert_state_t pc_state;   /* Current certificate state */
+    time_t pc_start_date;         /* Certificate start date or 0 if not present */
     time_t pc_expire_date;        /* Certificate expire date or 0 if not present */
+    char pc_subject[1024];        /* Current certificate subject */
     const char *pc_est_server;    /* EST server for certificate requets */
     int pc_est_retries;           /* Number of EST request retries */
     const char *pc_est_ca;        /* CA received by the EST server */
@@ -81,14 +80,11 @@ struct pkim_cert
 static char *pkim_cert_get_subject(arena_t *arena);
 static bool pkim_cert_enroll(struct pkim_cert *self);
 static bool pkim_cert_ca_verify(struct pkim_cert *self);
-static bool pkim_cert_get_bootid(char *buf, size_t bufsz);
-static uint32_t pkim_cert_get_stable_random(struct pkim_cert *self);
 static est_request_fn_t pkim_cert_cacerts_fn;
 static est_request_fn_t pkim_cert_enroll_fn;
 static void pkim_cert_timeout_fn(struct ev_loop *loop, ev_timer *w, int revent);
 static bool pkim_cert_timeout(struct pkim_cert *self, enum pkim_cert_action action, double timeout);
 static char *pkim_cert_time_str(arena_t *arena, double time);
-static uint32_t fnv1a(void *data, size_t sz);
 static void defer_ev_timer_stop_fn(void *data);
 static void defer_unlink_fn(void *data);
 
@@ -222,14 +218,20 @@ enum pkim_cert_state pkim_cert_state_CRT_VERIFY(pkim_cert_state_t *state, enum p
 
     struct pkim_cert *self = CONTAINER_OF(state, struct pkim_cert, pc_state);
 
-    if (!osp_pki_cert_info(PKIM_CERT_LABEL(self->pc_label), &self->pc_expire_date, NULL, 0))
+    if (!osp_pki_cert_info(
+                PKIM_CERT_LABEL(self->pc_label),
+                &self->pc_start_date,
+                &self->pc_expire_date,
+                self->pc_subject,
+                sizeof(self->pc_subject)))
     {
+        self->pc_start_date = 0;
         self->pc_expire_date = 0;
     }
 
     if (time(NULL) < self->pc_expire_date)
     {
-        LOG(NOTICE, "pkim: %s: Certificate present.", self->pc_label);
+        LOG(NOTICE, "pkim: %s: Certificate present: %s", self->pc_label, self->pc_subject);
         return pkim_cert_IDLE;
     }
 
@@ -495,12 +497,12 @@ enum pkim_cert_state pkim_cert_state_IDLE(pkim_cert_state_t *state, enum pkim_ce
         case pkim_cert_do_EXPIRE_CHECK:
             arena_restore(self->pc_state_frame);
             /*
-             * Renew date is calculated by taking the current certificate expiration
-             * date and a random value between 10% and 100% of PKI_CERT_EST_RENEW_TIME
+             * The renew date is a fixed date at 80% of the certificate validity
+             * period
              */
-            renew_date = (double)self->pc_expire_date;
-            renew_date -= PKIM_CERT_RENEW_TIME * 0.1;
-            renew_date -= (pkim_cert_get_stable_random(self) % PKIM_CERT_RENEW_TIME) * 0.9;
+            renew_date = self->pc_expire_date - self->pc_start_date;
+            renew_date *= 0.80;
+            renew_date += self->pc_start_date;
 
             wait_time = renew_date - (double)time(NULL);
             if (wait_time < 0.0)
@@ -509,7 +511,7 @@ enum pkim_cert_state pkim_cert_state_IDLE(pkim_cert_state_t *state, enum pkim_ce
                 wait_time = PKIM_CERT_RENEW_WAIT * 0.5;
                 wait_time += (random() % PKIM_CERT_RENEW_WAIT) * 0.5;
                 LOG(INFO,
-                    "pkimt: %s: Certificate renew is overdue. Renewing in %s.",
+                    "pkimt: %s: Certificate is overdue. Renewing in %s.",
                     self->pc_label,
                     pkim_cert_time_str(scratch, wait_time));
                 pkim_cert_timeout(self, pkim_cert_do_TIMEOUT, wait_time);
@@ -519,13 +521,22 @@ enum pkim_cert_state pkim_cert_state_IDLE(pkim_cert_state_t *state, enum pkim_ce
             pkim_ovsdb_status_set(self->pc_label, "success");
 
             LOG(NOTICE,
-                "pkim: %s: Certificate renewal scheduled in %s.",
+                "pkim: %s: Certificate renewal schedule will be set in %s.",
                 self->pc_label,
                 pkim_cert_time_str(scratch, wait_time));
 
             if (wait_time > PKIM_CERT_RENEW_CHECK)
             {
                 wait_time = PKIM_CERT_RENEW_CHECK;
+            }
+            else if (wait_time < 1.0)
+            {
+                /*
+                 * pkim_cert_timeout() might wake up the callback timer
+                 * somewhat early (due to realtime clock synchronization).
+                 * To prevent log spamming, never wait for less than a second.
+                 */
+                wait_time = 1.0;
             }
 
             if (!pkim_cert_timeout(self, pkim_cert_do_EXPIRE_CHECK, wait_time))
@@ -587,13 +598,31 @@ bool pkim_cert_enroll(struct pkim_cert *self)
     ARENA_SCRATCH(scratch);
 
     bool retval = false;
+    char *csr_subject = NULL;
 
-    /* Get the device-specific subject line */
-    char *csr_subject = pkim_cert_get_subject(self->pc_arena);
-    if (csr_subject == NULL)
+    /*
+     * Always perform re-enroll if we have a valid certificate
+     */
+    bool is_enroll = (self->pc_expire_date == 0) || (self->pc_subject[0] == '\0');
+    LOG(INFO, "pkim: %s: Performing %s: %s", self->pc_label, is_enroll ? "ENROLL" : "REENROLL", self->pc_est_server);
+
+    /*
+     * Generate a default subject during Enroll. For ReEnroll operations we need
+     * to use the subject from the existing certificate.
+     */
+    if (is_enroll)
     {
-        LOG(ERR, "pkim: %s: Error generating CSR subject.", self->pc_label);
-        return false;
+        csr_subject = pkim_cert_get_subject(self->pc_arena);
+        if (csr_subject == NULL)
+        {
+            LOG(ERR, "pkim: %s: Error generating CSR subject.", self->pc_label);
+            return false;
+        }
+        LOG(INFO, "pkim: %s: Using default subject: %s", self->pc_label, csr_subject);
+    }
+    else
+    {
+        csr_subject = self->pc_subject;
     }
 
     /* Generate the CSR using the subject line above */
@@ -604,14 +633,9 @@ bool pkim_cert_enroll(struct pkim_cert *self)
         return false;
     }
 
-    /*
-     * If the certificate is expired or doesn't exist (pc_expire_date == 0),
-     * perform a simpleenroll request. Otherwise do a simplereenroll request.
-     */
-    if (time(NULL) < self->pc_expire_date)
+    if (is_enroll)
     {
-        LOG(INFO, "pkim: %s: Performing REENROLL: %s", self->pc_label, self->pc_est_server);
-        retval = est_client_simple_reenroll(
+        retval = est_client_simple_enroll(
                 self->pc_arena,
                 EV_DEFAULT,
                 self->pc_est_server,
@@ -621,8 +645,7 @@ bool pkim_cert_enroll(struct pkim_cert *self)
     }
     else
     {
-        LOG(INFO, "pkim: %s: Performing ENROLL: %s", self->pc_label, self->pc_est_server);
-        retval = est_client_simple_enroll(
+        retval = est_client_simple_reenroll(
                 self->pc_arena,
                 EV_DEFAULT,
                 self->pc_est_server,
@@ -748,59 +771,6 @@ bool pkim_cert_ca_verify(struct pkim_cert *self)
     return true;
 }
 
-bool pkim_cert_get_bootid(char *buf, size_t bufsz)
-{
-    ARENA_SCRATCH(scratch);
-
-    if (access("/proc/sys/kernel/random/boot_id", R_OK) != 0)
-    {
-        LOG(WARN, "pkim: `boot_id` is unreadable or does not exist.");
-        return false;
-    }
-
-    FILE *f = fopen("/proc/sys/kernel/random/boot_id", "r");
-    if (f == NULL || !arena_defer_fclose(scratch, f))
-    {
-        LOG(WARN, "pkim: Error opening `boot_id` file.");
-        return false;
-    }
-
-    if (fgets(buf, sizeof(buf), f) == NULL)
-    {
-        LOG(WARN, "pkmim: Error reading `boot_id` file.");
-        return false;
-    }
-
-    return true;
-}
-
-/*
- * Generate a random number that remains stable until a reboot. Ensure the number
- * is not 0.
- *
- * Use a simple fnv-1a hash on the content of the
- * /proc/sys/kernel/random/boot_id file and the cert label.
- */
-uint32_t pkim_cert_get_stable_random(struct pkim_cert *self)
-{
-    ARENA_SCRATCH(scratch);
-
-    char buf[128] = {0};
-
-    if (!pkim_cert_get_bootid(buf, sizeof(buf)))
-    {
-        snprintf(buf, sizeof(buf), "%d", getpid());
-    }
-
-    /*
-     * Concatenate the bootid and the certificate label and calculate a FNV-1a
-     * hash. This should yield a pesudo random number that stays stable across
-     * reboots and is unique for each certificate.
-     */
-    char *hstr = arena_sprintf(scratch, "%s.%s", self->pc_label, buf);
-    return fnv1a(hstr, strlen(hstr));
-}
-
 /*
  * EST cacerts request callback
  */
@@ -903,22 +873,6 @@ static char *pkim_cert_time_str(arena_t *arena, double ts)
     }
 
     return retval != NULL ? retval : "<conversion_error>";
-}
-
-/*
- * Simple FNV-1a hash implementation
- */
-uint32_t fnv1a(void *data, size_t sz)
-{
-    uint32_t hash = 0x811c9dc5;
-
-    for (size_t ii = 0; ii < sz; ii++)
-    {
-        hash ^= ((uint8_t *)data)[ii];
-        hash *= 0x01000193;
-    }
-
-    return hash;
 }
 
 /*

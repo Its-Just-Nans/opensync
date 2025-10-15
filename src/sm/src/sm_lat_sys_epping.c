@@ -248,7 +248,7 @@ static int sm_lat_sys_state_clean(void)
         {
             size_t i;
             glob(EPPING_PID_DIR "/*", 0, NULL, &g);
-            LOGD(LOG_PREFIX("%d pids to clean", g.gl_pathc));
+            LOGD(LOG_PREFIX("%zu pids to clean", g.gl_pathc));
 
             for (i = 0; i < g.gl_pathc; i++)
             {
@@ -551,8 +551,7 @@ static int sm_lat_sys_ifname_buf_read(struct sm_lat_sys_ifname *sif, int fd)
     }
 
     /* Extend cache buffer with the new data */
-    char *tmp = REALLOC(buf->data, buf->len + n);
-    buf->data = tmp;
+    buf->data = REALLOC(buf->data, buf->len + n);
     memcpy(buf->data + buf->len, chunk, n);
     buf->len += n;
     return 0;
@@ -573,16 +572,19 @@ static char *sm_lat_sys_buf_next_line(struct pipe_buf *buf)
     line = STRDUP(buf->data);
     buf->len -= (newline_pos - buf->data + 1);
 
-    /* Move remaining buffer content to the beginning */
-    memmove(buf->data, newline_pos + 1, buf->len);
+    if (buf->len == 0)
+    {
+        FREE(buf->data);
+        buf->data = NULL;
+    }
+    else
+    {
+        /* Move remaining buffer content to the beginning */
+        memmove(buf->data, newline_pos + 1, buf->len);
 
-    /* Shrink buffer to include moved data */
-    buf->data = REALLOC(buf->data, buf->len);
-
-    /* Realloc with len 0 is equivalent to free(), NULL data ptr will avoid
-     * double FREE() when cleaning sm_lat_sys_ifname structure in the future
-     */
-    if (buf->len == 0) buf->data = NULL;
+        /* Shrink buffer to include moved data */
+        buf->data = REALLOC(buf->data, buf->len);
+    }
     return line;
 }
 

@@ -368,9 +368,15 @@ void dhcp_prepare_forward(struct dhcp_relay_session *d_session, uint8_t *packet)
     net_header_logt(net_parser);
 
     MEM_CPY(d_session->raw_dst.sll_addr, eth_header->dstmac, sizeof(os_macaddr_t));
-    if (kconfig_enabled(DHCP_RELAY_SPOOF_SOURCE_MAC))
+    if (kconfig_enabled(CONFIG_DHCP_RELAY_SPOOF_SOURCE_MAC))
     {
-        MEM_CPY(packet + 6, d_session->src_eth_addr.addr, sizeof(d_session->src_eth_addr.addr));
+        /* Use the original packet's client mac address in the re-injecting logic */
+        net_parser->src_eth_addr = eth_header->srcmac;
+    }
+    else
+    {
+        /* Use the TX interface's mac address in the re-injecting logic */
+        net_parser->src_eth_addr = &d_session->src_eth_addr;
     }
 }
 
@@ -606,6 +612,7 @@ int fsm_dpi_dhcp_process_attr(
 
             /* Now we can process the DHCP packet */
             ret = fsm_dpi_process_dhcp_packet(session, net_parser);
+            acc->dpi_always = true;
             break;
         }
 

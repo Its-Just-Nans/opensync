@@ -756,9 +756,11 @@ static bool we_tab_set(struct we_obj *obj, struct we_obj *key, struct we_obj *va
 {
     struct we_kvp *kvp;
 
-    assert(obj != key);
-    assert(obj != val);
+    we_assert(obj != key);
+    if (!(obj != key)) return false;
 
+    we_assert(obj != val);
+    if (!(obj != val)) return false;
     if (val->type == WE_NIL)
     {
         we_kvp_del(obj, key);
@@ -767,7 +769,9 @@ static bool we_tab_set(struct we_obj *obj, struct we_obj *key, struct we_obj *va
 
     if (!(kvp = we_kvp_get(obj, key))) return false;
 
-    assert(val->type);
+    we_assert(val->type);
+    if (!(val->type)) return false;
+
     if (kvp->key.type == WE_NIL)
     {
         kvp->key = *we_obj_acquire(key);
@@ -797,8 +801,11 @@ static bool we_tab_get(struct we_obj *obj, struct we_obj *key, struct we_obj *de
 {
     struct we_kvp *kvp;
 
-    assert(obj->type == WE_TAB);
-    assert(obj != key);
+    we_assert(obj->type == WE_TAB);
+    if (!(obj->type == WE_TAB)) return false;
+
+    we_assert(obj != key);
+    if (!(obj != key)) return false;
 
     if (!(kvp = we_kvp_find(obj->u.tab, key, true)))
     {
@@ -816,7 +823,8 @@ static bool we_tab_get(struct we_obj *obj, struct we_obj *key, struct we_obj *de
         {
             kvp = we_kvp_find(obj->u.tab, key, false);
         }
-        assert(kvp);
+        we_assert(kvp);
+        if (!kvp) return false;
     }
 
     /* true when an item doesn't exist */
@@ -900,7 +908,9 @@ static bool we_push(struct we_arr *s, struct we_obj *val)
 
 static bool we_arr_set(struct we_obj *obj, struct we_obj *key, struct we_obj *val)
 {
-    assert(obj->type == WE_ARR && key->type == WE_NUM);
+    we_assert(obj->type == WE_ARR && key->type == WE_NUM);
+    if (!(obj->type == WE_ARR && key->type == WE_NUM)) return false;
+
     if (key->u.val < 0)
     {
         key->u.val += obj->u.arr->items;
@@ -927,7 +937,8 @@ static bool we_arr_set(struct we_obj *obj, struct we_obj *key, struct we_obj *va
 
 static bool we_arr_get(struct we_obj *obj, struct we_obj *key, struct we_obj *def)
 {
-    assert(obj->type == WE_ARR && key->type == WE_NUM);
+    we_assert(obj->type == WE_ARR && key->type == WE_NUM);
+    if (!(obj->type == WE_ARR && key->type == WE_NUM)) return false;
     if (key->u.val < 0)
     {
         key->u.val += obj->u.arr->items;
@@ -948,7 +959,8 @@ static bool we_arr_get(struct we_obj *obj, struct we_obj *key, struct we_obj *de
     /* Exists */
     if (obj->u.arr->data[key->u.val].type)
     {
-        assert(!def->type || obj->u.arr->data[key->u.val].type == def->type);
+        we_assert(!def->type || obj->u.arr->data[key->u.val].type == def->type);
+        if (!(!def->type || obj->u.arr->data[key->u.val].type == def->type)) return false;
         /* Does not exist but has a type. Insert. */
     }
     else if (def->type)
@@ -1031,7 +1043,9 @@ static inline void we_op_size(struct we_obj *a)
 /* Return the integer representing the character */
 static inline void we_op_ord(struct we_obj *a)
 {
-    assert(a->type == WE_BUF);
+    we_assert(a->type == WE_BUF);
+    if (!(a->type == WE_BUF)) return;
+
     uint8_t val = 0;
     if (we_buf_len(a)) val = a->u.buf->data[a->off];
     we_obj_release(a);
@@ -1041,7 +1055,9 @@ static inline void we_op_ord(struct we_obj *a)
 /* Return the character represented by the integer value */
 static inline bool we_op_chr(struct we_obj *a)
 {
-    assert(a->type == WE_NUM);
+    we_assert(a->type == WE_NUM);
+    if (!(a->type == WE_NUM)) return false;
+
     char c = (char)a->u.val;
     if (!we_buf_dup(a, 1, &c)) return false;
     return true;
@@ -1146,7 +1162,9 @@ static bool we_op_str(struct we_obj *obj, struct we_obj *buf, struct we_obj *ref
     if (!buf)
     {
         if (obj->type == WE_BUF) return true;
-        assert(!ref);
+        we_assert(!ref);
+        if (ref) return false;
+
         if (!we_tab(&tmp2)) return false;
         ref = &tmp2;
         if (!we_buf_dup(&tmp, we_stringify_len(obj, ref) + 1, NULL))
@@ -1280,7 +1298,9 @@ static inline bool we_op_int(struct we_obj *a)
         we_obj_release(a);
         we_num(a, sb * rv);
     }
-    assert(a->type == WE_NUM);
+    we_assert(a->type == WE_NUM);
+    if (!(a->type == WE_NUM)) return false;
+
     return true;
 }
 
@@ -1363,7 +1383,7 @@ static bool we_op_cat(struct we_obj *a, struct we_obj *b)
     struct we_buf *buf;
     uint32_t len, off = 0;
 
-    assert(a->type == WE_BUF && b->type == WE_BUF);
+    we_assert(a->type == WE_BUF && b->type == WE_BUF);
     if (a->type != WE_BUF || b->type != WE_BUF) return false;
 
     len = we_buf_len(a) + we_buf_len(b);
@@ -1418,8 +1438,12 @@ static bool we_op_cat(struct we_obj *a, struct we_obj *b)
 /* memcmp */
 static void we_op_com(struct we_obj *a, struct we_obj *b)
 {
-    assert(a->type == WE_BUF);
-    assert(b->type == WE_BUF);
+    we_assert(a->type == WE_BUF);
+    if (!(a->type == WE_BUF)) return;
+
+    we_assert(b->type == WE_BUF);
+    if (!(b->type == WE_BUF)) return;
+
     int res = we_buf_cmp(a, b);
     we_obj_release(a);
     we_obj_release(b);
@@ -1554,7 +1578,9 @@ static bool we_op_smt(struct we_obj *obj, struct we_obj *meta)
 static void we_op_rsz(struct we_obj *obj, struct we_obj *num)
 {
     bool res = false;
-    assert(num->type == WE_NUM);
+    we_assert(num->type == WE_NUM);
+    if (!(num->type == WE_NUM)) return;
+
     if (num->u.val >= 0) res = we_obj_resize(obj, num->u.val);
     we_obj_release(obj);
     we_num(obj, res ? 1 : 0);
@@ -1562,8 +1588,11 @@ static void we_op_rsz(struct we_obj *obj, struct we_obj *num)
 
 static void we_op_idx(struct we_obj *obj, struct we_obj *idx)
 {
-    assert(obj->type >= WE_TAB);
-    assert(idx->type <= WE_NUM);
+    we_assert(obj->type >= WE_TAB);
+    if (!(obj->type >= WE_TAB)) return;
+
+    we_assert(idx->type <= WE_NUM);
+    if (!(idx->type <= WE_NUM)) return;
 
     if (obj->type == WE_TAB)
     {
@@ -1604,9 +1633,14 @@ static void we_op_idx(struct we_obj *obj, struct we_obj *idx)
 
 static bool we_op_val(struct we_obj *obj, struct we_obj *idx, struct we_obj *dst)
 {
-    assert(obj->type >= WE_TAB);
-    assert(idx->type <= WE_NUM);
-    assert(dst->type == WE_ARR);
+    we_assert(obj->type >= WE_TAB);
+    if (!(obj->type >= WE_TAB)) return false;
+
+    we_assert(idx->type <= WE_NUM);
+    if (!(idx->type <= WE_NUM)) return false;
+
+    we_assert(dst->type == WE_ARR);
+    if (!(dst->type == WE_ARR)) return false;
 
     struct we_obj key, val, nil;
     int i = idx->u.val, n;
@@ -1756,7 +1790,9 @@ we_op_get: {
     DISPATCH();
 }
 we_op_mov:
-    assert(prog[pc] <= sp);
+    we_assert(prog[pc] <= sp);
+    if (!(prog[pc] <= sp)) return EINVAL;
+
     we_obj_acquire(&s[prog[pc]]);
     s[sp++] = s[prog[pc++]];
     DISPATCH();
@@ -1853,7 +1889,9 @@ we_op_jmp:
     pc += read32(&prog[pc]);
     DISPATCH();
 we_op_brz:
-    assert(s[sp - 1].type <= WE_NUM);
+    we_assert(s[sp - 1].type <= WE_NUM);
+    if (!(s[sp - 1].type <= WE_NUM)) return EINVAL;
+
     pc += (!s[--sp].u.val) ? read32(&prog[pc]) : 4;
     DISPATCH();
 we_op_ext:
@@ -1921,7 +1959,9 @@ we_op_val:
     pc += 3;
     DISPATCH();
 we_op_csp:
-    assert(prog[pc] == sp);
+    we_assert(prog[pc] == sp);
+    if (!(prog[pc] == sp)) return EINVAL;
+
     pc++;
     we_num(&s[sp], sp);
     sp++;
@@ -1965,7 +2005,8 @@ we_op_eva:
     we_arr_resize(&s[sp - 1], 32);
 
     s[sp - 1].u.arr->prev = *state;
-    assert((int)(*state)->size > sp);
+    we_assert((int)(*state)->size > sp);
+    if (!((int)(*state)->size > sp)) return EINVAL;
 
     s[0].off += pc;
     s[0].len -= pc;

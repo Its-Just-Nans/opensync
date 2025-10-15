@@ -63,7 +63,7 @@ static bool pki_ps_set_string(const char *label, const char *key, const char *va
 static char *pki_key_gen(arena_t *arena);
 static char *pki_pub_gen(arena_t *arena, const char *key);
 static bool pki_cert_verify(const char *crt);
-static bool pki_cert_info(const char *crt, time_t *expire_date, char *sub, size_t sub_sz);
+static bool pki_cert_info(const char *crt, time_t *start_date, time_t *expire_date, char *sub, size_t sub_sz);
 static bool pki_ps_write(int cert_dir, const char *path, const char *label, const char *key);
 static bool pki_safe_rename(int dir, const char *path);
 static void pdefer_memset_fn(void *data);
@@ -75,7 +75,7 @@ static bool arena_defer_sigblock(arena_t *arena);
  * Main API
  * ======================================================================
  */
-bool osp_pki_cert_info(const char *label, time_t *expire_date, char *sub, size_t sub_sz)
+bool osp_pki_cert_info(const char *label, time_t *start_date, time_t *expire_date, char *sub, size_t sub_sz)
 {
     ARENA_SCRATCH(scratch);
 
@@ -93,8 +93,9 @@ bool osp_pki_cert_info(const char *label, time_t *expire_date, char *sub, size_t
     }
 
     /* Verify the date and time */
+    time_t startdate;
     time_t enddate;
-    if (!pki_cert_info(crt, &enddate, sub, sub_sz))
+    if (!pki_cert_info(crt, &startdate, &enddate, sub, sub_sz))
     {
         LOG(ERR, "osp_pki: %s: Unable to verify certificate expire date.", PKI_LABEL_STR(label));
         return false;
@@ -121,6 +122,7 @@ bool osp_pki_cert_info(const char *label, time_t *expire_date, char *sub, size_t
             ((int64_t)cvalid / 60) % 60);
     }
 
+    if (start_date != NULL) *start_date = startdate;
     if (expire_date != NULL) *expire_date = enddate;
 
     return true;
@@ -323,7 +325,7 @@ bool osp_pki_cert_install(const char *label)
     int cert_dir;
 
     /* First, check if we have a valid certificate and private key */
-    if (!osp_pki_cert_info(label, NULL, NULL, 0))
+    if (!osp_pki_cert_info(label, NULL, NULL, NULL, 0))
     {
         /* No valid certificate yet, nothing to do */
         return false;
@@ -805,32 +807,29 @@ bool pki_cert_verify(const char *crt)
 /*
  * Get the expiration date of the certificate
  */
-bool pki_cert_info(const char *crt, time_t *expire_date, char *sub, size_t sub_sz)
+bool pki_cert_info(const char *crt, time_t *start_date, time_t *expire_date, char *sub, size_t sub_sz)
 {
     ARENA_SCRATCH(scratch);
     struct tm tm;
-    time_t edate;
+    time_t datestart;
+    time_t dateend;
 
-    char *crtinfo = execssl_arena(scratch, crt, "x509", "-enddate", "-subject", "-nameopt", "compat", "-noout");
+    char *crtinfo =
+            execssl_arena(scratch, crt, "x509", "-startdate", "-enddate", "-subject", "-nameopt", "compat", "-noout");
     if (crtinfo == NULL)
     {
         LOG(ERR, "osp_pki: Error retriving certificate information.");
         return false;
     }
 
-    /* Extract the end date and subject from the openssl output */
+    /* Extract the dates and subject line from the openssl output */
     char *p = crtinfo;
-    char *dateinfo = strsep(&p, "\n");
+    char *strstart = strsep(&p, "\n");
+    char *strend = strsep(&p, "\n");
     char *subinfo = strsep(&p, "\n");
-    if (dateinfo == NULL || subinfo == NULL)
+    if (strstart == NULL || strend == NULL || subinfo == NULL)
     {
         LOG(ERR, "osp_pki: Error parsing certificate information.");
-        return false;
-    }
-
-    if (strptime(dateinfo, "notAfter=%b %d %H:%M:%S %Y", &tm) == NULL)
-    {
-        LOG(ERR, "osp_pki: Error parsing certificate expiration date: %s", dateinfo);
         return false;
     }
 
@@ -841,8 +840,25 @@ bool pki_cert_info(const char *crt, time_t *expire_date, char *sub, size_t sub_s
      * function (not POSIX). Fortunately it is available in both uClibc and
      * libmusl.
      */
-    edate = timegm(&tm);
-    if (edate == -1)
+    if (strptime(strstart, "notBefore=%b %d %H:%M:%S %Y", &tm) == NULL)
+    {
+        LOG(ERR, "osp_pki: Error parsing certificate start date: %s", strstart);
+        return false;
+    }
+    datestart = timegm(&tm);
+    if (datestart == -1)
+    {
+        LOG(ERR, "osp_pki: Error converting certificate start date to Unix time.");
+        return false;
+    }
+
+    if (strptime(strend, "notAfter=%b %d %H:%M:%S %Y", &tm) == NULL)
+    {
+        LOG(ERR, "osp_pki: Error parsing certificate expiration date: %s", strend);
+        return false;
+    }
+    dateend = timegm(&tm);
+    if (dateend == -1)
     {
         LOG(ERR, "osp_pki: Error converting certificate expire date to Unix time.");
         return false;
@@ -856,7 +872,8 @@ bool pki_cert_info(const char *crt, time_t *expire_date, char *sub, size_t sub_s
 
     subinfo += strlen("subject=");
 
-    if (expire_date != NULL) *expire_date = edate;
+    if (start_date != NULL) *start_date = datestart;
+    if (expire_date != NULL) *expire_date = dateend;
     if (sub != NULL && sub_sz != 0) strscpy(sub, subinfo, sub_sz);
 
     return true;

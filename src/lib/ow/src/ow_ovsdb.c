@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <osw_timer.h>
 #include <osw_etc.h>
 #include "ow_conf.h"
+#include "ow_conf_rsno.h"
 #include "ow_ovsdb_ms.h"
 #include "ow_ovsdb_mld_onboard.h"
 #include "ow_ovsdb_wps.h"
@@ -496,7 +497,7 @@ ow_ovsdb_get_rstate(struct schema_Wifi_Radio_State *rstate,
                                  arg,
                                  &n);
     if (p) memcpy(rstate, p, sizeof(*rstate));
-    free(p);
+    FREE(p);
     return p && n == 1;
 }
 
@@ -513,7 +514,7 @@ ow_ovsdb_get_vstate(struct schema_Wifi_VIF_State *vstate,
                                  arg,
                                  &n);
     if (p) memcpy(vstate, p, sizeof(*vstate));
-    free(p);
+    FREE(p);
     return p && n == 1;
 }
 
@@ -1542,6 +1543,7 @@ ow_ovsdb_vifstate_to_schema(struct schema_Wifi_VIF_State *schema,
     const struct osw_drv_vif_state_ap *ap = &vif->drv_state->u.ap;
     const struct osw_drv_vif_state_ap_vlan *ap_vlan = &vif->drv_state->u.ap_vlan;
     const struct osw_drv_vif_state_sta *vsta = &vif->drv_state->u.sta;
+    struct osw_wpa wpa = ap->wpa;
     struct osw_hwaddr_str mac;
     int c;
 
@@ -1564,6 +1566,8 @@ ow_ovsdb_vifstate_to_schema(struct schema_Wifi_VIF_State *schema,
         case OSW_VIF_UNDEFINED:
             break;
         case OSW_VIF_AP:
+            ow_conf_rsno_fix_wpa_with_state(&wpa, ap);
+
             SCHEMA_SET_STR(schema->mode, "ap");
             SCHEMA_SET_STR(schema->ssid, ap->ssid.buf);
             SCHEMA_SET_STR(schema->ssid_broadcast, ap->ssid_hidden ? "disabled" : "enabled");
@@ -1574,7 +1578,7 @@ ow_ovsdb_vifstate_to_schema(struct schema_Wifi_VIF_State *schema,
                 SCHEMA_UNSET_FIELD(schema->nas_identifier);
             }
             SCHEMA_SET_INT(schema->ft_mobility_domain, ap->ft_mobility_domain);
-            SCHEMA_SET_BOOL(schema->wpa, ap->wpa.wpa || ap->wpa.rsn);
+            SCHEMA_SET_BOOL(schema->wpa, wpa.wpa || wpa.rsn);
             SCHEMA_SET_BOOL(schema->ap_bridge, ap->isolated ? false : true);
             SCHEMA_SET_BOOL(schema->btm, ap->mode.wnm_bss_trans);
             SCHEMA_SET_BOOL(schema->rrm, ap->mode.rrm_neighbor_report);
@@ -1614,14 +1618,14 @@ ow_ovsdb_vifstate_to_schema(struct schema_Wifi_VIF_State *schema,
                     SCHEMA_SET_STR(schema->mac_list_type, acl_policy_str);
             }
 
-            if (ap->wpa.group_rekey_seconds != OSW_WPA_GROUP_REKEY_UNDEFINED)
-                SCHEMA_SET_INT(schema->group_rekey, ap->wpa.group_rekey_seconds);
+            if (wpa.group_rekey_seconds != OSW_WPA_GROUP_REKEY_UNDEFINED)
+                SCHEMA_SET_INT(schema->group_rekey, wpa.group_rekey_seconds);
 
             c = ow_ovsdb_freq_to_chan(ap->channel.control_freq_mhz);
             if (c != 0)
                 SCHEMA_SET_INT(schema->channel, c);
 
-            ow_ovsdb_vifstate_fill_akm(schema, &ap->wpa);
+            ow_ovsdb_vifstate_fill_akm(schema, &wpa);
             ow_ovsdb_vifstate_fill_ap_psk(schema, &ap->psk_list);
             ow_ovsdb_vifstate_fill_ap_acl(schema, vconf, &ap->acl);
             ow_ovsdb_vifstate_fill_ap_radius(schema, &ap->radius_list, &ap->acct_list);
@@ -2391,14 +2395,14 @@ ow_ovsdb_sta_tag_mutate(const struct osw_hwaddr *addr,
                                  json_string(action), /* "insert" or "delete" */
                                  json_string(mac_str.buf));
     if (row == NULL) {
-        free(where);
+        FREE(where);
         return -1;
     }
 
     json_t *rows = json_array();
     if (rows == NULL) {
-        free(row);
-        free(where);
+        FREE(row);
+        FREE(where);
         return -1;
     }
     json_array_append_new(rows, row);

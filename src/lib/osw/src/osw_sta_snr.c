@@ -254,6 +254,7 @@ osw_sta_snr_params_t *osw_sta_snr_params_alloc(void)
 void osw_sta_snr_params_drop(osw_sta_snr_params_t *p)
 {
     if (p == NULL) return;
+    FREE(p->vif_name);
     FREE(p);
 }
 

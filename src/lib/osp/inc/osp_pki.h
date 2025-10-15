@@ -31,15 +31,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <time.h>
 
 /**
- * Check if the certificate denoted by `label` and return the expire date
- * and subject line.
+ * Check if the certificate denoted by `label` and return the start date, expire
+ * date and the subject line.
  *
  * If `label` is NULL, the defualt certificate is checked.
  *
  * @return It returns true if the certificate exists and is correct,
  *         otherwise it returns false.
  */
-bool osp_pki_cert_info(const char *label, time_t *expire_date, char *sub, size_t sub_sz);
+bool osp_pki_cert_info(const char *label, time_t *start_date, time_t *expire_date, char *sub, size_t sub_sz);
 
 /**
  * Generate and return a new CSR (certificate signing request) for certificates

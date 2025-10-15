@@ -251,9 +251,8 @@ static void dppline_free_stat(dppline_stats_t * s)
             case DPP_T_SURVEY:
                 for (i=0; i<s->u.survey.qty; i++)
                 {
-                    if (s->u.survey.list[i].info.puncture_len && s->u.survey.list[i].info.puncture != NULL) {
-                        FREE(s->u.survey.list[i].info.puncture);
-                    }
+                    if (s->u.survey.list != NULL) FREE(s->u.survey.list[i].info.puncture);
+                    if (s->u.survey.avg != NULL) FREE(s->u.survey.avg[i].info.puncture);
                 }
                 FREE(s->u.survey.list);
                 FREE(s->u.survey.avg);
@@ -377,6 +376,11 @@ static bool dppline_copysts(dppline_stats_t * dst, void * sts)
                         memcpy(&dst->u.survey.avg[dst->u.survey.qty++],
                                 result_entry,
                                 sizeof(dpp_survey_record_avg_t));
+                        if (dst->u.survey.avg[dst->u.survey.qty - 1].info.puncture != NULL) {
+                            dst->u.survey.avg[dst->u.survey.qty - 1].info.puncture =
+                                MEMNDUP(dst->u.survey.avg[dst->u.survey.qty - 1].info.puncture,
+                                        dst->u.survey.avg[dst->u.survey.qty - 1].info.puncture_len);
+                        }
                         dst->u.survey.list = NULL;
                     }
                     else {
@@ -393,6 +397,11 @@ static bool dppline_copysts(dppline_stats_t * dst, void * sts)
                         memcpy(&dst->u.survey.list[dst->u.survey.qty++],
                                 result_entry,
                                 sizeof(dpp_survey_record_t));
+                        if (dst->u.survey.list[dst->u.survey.qty - 1].info.puncture != NULL) {
+                            dst->u.survey.list[dst->u.survey.qty - 1].info.puncture =
+                                MEMNDUP(dst->u.survey.list[dst->u.survey.qty - 1].info.puncture,
+                                        dst->u.survey.list[dst->u.survey.qty - 1].info.puncture_len);
+                        }
                         dst->u.survey.avg = NULL;
                     }
                 }
@@ -1641,7 +1650,7 @@ static void dppline_add_stat_device(Sts__Report *r, dppline_stats_t *s)
             {
                 Sts__Device__Thermal__LedState *led_state;
 
-                led_state = sr->thermal_stats[i]->led_state[j] = MALLOC(sizeof(**sr->thermal_stats[i]->led_state));
+                led_state = sr->thermal_stats[i]->led_state[sr->thermal_stats[i]->n_led_state] = MALLOC(sizeof(**sr->thermal_stats[i]->led_state));
                 sts__device__thermal__led_state__init(led_state);
                 led_state->position = device->thermal_list[i].led_states[j].position;
                 led_state->has_position = true;
@@ -1663,7 +1672,7 @@ static void dppline_add_stat_device(Sts__Report *r, dppline_stats_t *s)
             Sts__Device__Thermal__RadioTxChainMask  *txchainmask;
             if (device->thermal_list[i].radio_txchainmasks[j].type != RADIO_TYPE_NONE)
             {
-                txchainmask = sr->thermal_stats[i]->txchainmask[j] = MALLOC(sizeof(**sr->thermal_stats[i]->txchainmask));
+                txchainmask = sr->thermal_stats[i]->txchainmask[sr->thermal_stats[i]->n_txchainmask] = MALLOC(sizeof(**sr->thermal_stats[i]->txchainmask));
                 sts__device__thermal__radio_tx_chain_mask__init(txchainmask);
                 txchainmask->band =  dppline_to_proto_radio(device->thermal_list[i].radio_txchainmasks[j].type);
                 txchainmask->has_band = true;

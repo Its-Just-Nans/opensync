@@ -41,15 +41,17 @@ RET_CODE_FAIL=1
 RET_CODE_CHANNELS_MISMATCHED=1
 RET_CODE_ALL_CHANNELS_NOP=2
 
+run_parts_exit_code=0
 run_parts()
 {
     dir=$1
     shift
     for i in $(ls $dir/*)
     do
-        if ! ( . "$i" "$@" ); then
-            # Exiting with fail if script from BSS_IS_UP_D returned 1 (fail)
-            return 1
+        if [ -f "$i" ]; then
+            . "$i" "$@"
+            run_parts_exit_code=$?
+            return $run_parts_exit_code
         fi
     done
     return 0

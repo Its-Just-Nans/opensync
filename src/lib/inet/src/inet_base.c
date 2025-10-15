@@ -1903,6 +1903,15 @@ bool inet_base_dhcp_client_commit(inet_base_t *self, bool start)
         return false;
     }
 
+    /*
+     * Reapply any static IPv4 routes after a DHCP client service stop or start.
+     * This is needed because the kernel will flush *all* IPv4 routes when deleting an IP address
+     * or flushing all IP addresses from an interface (which is what happens when a DHCP client
+     * service is started or stopped).
+     */
+    LOG(DEBUG, "inet_base: %s: Reapply static routes after DHCP client service stop or start", self->inet.in_ifname);
+    inet_routes_reapply(self->in_routes_set);
+
     return true;
 }
 

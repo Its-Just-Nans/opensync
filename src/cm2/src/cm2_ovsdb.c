@@ -1846,10 +1846,6 @@ void cm2_connection_clear_used(void)
     if (g_state.link.is_used) {
         LOGN("%s: Remove old used link.", g_state.link.if_name);
 
-        if (g_state.dev_type == CM2_DEVICE_BRIDGE && cm2_is_eth_type(g_state.link.if_type)) {
-            MEMZERO(g_state.old_link);
-            memcpy(&g_state.old_link, &g_state.link, sizeof(g_state.old_link));
-        }
 
         if (cm2_link_is_bridge(&g_state.link)) {
             if (cm2_is_eth_type(g_state.link.if_type)) {
@@ -1872,7 +1868,28 @@ void cm2_connection_clear_used(void)
 
 static void cm2_util_switch_role(struct schema_Connection_Manager_Uplink *uplink)
 {
-    if (!g_state.connected) {
+    if (!g_state.connected_at_least_once)
+    {
+        /*
+        * If the new link is eth type and the old link was wifi type and was in
+        * bridge, we need to stop DHCPv6 client running on the bridge interface.
+        *
+        * Stopping (on bridge intf) and starting (on intf) of DHCPv6 client when old link was
+        * an ethernet type is already handled in cm2_connection_clear_used();
+        *
+        * For non-eth (e.g. wifi) old links, when no longer used and removed from bridge,
+        * DHCPv6 client is by design not stopped -- no need to stop immediately,
+        * but we need to stop it if the newly provisioned uplink is ethernet type.
+        */
+        if (cm2_link_is_bridge(&g_state.link)) {
+            if (cm2_is_wifi_type(g_state.link.if_type) && cm2_is_eth_type(uplink->if_type)) {
+                LOGI("%s: Disabling DHCP IPv6 client", g_state.link.bridge_name);
+                cm2_ovsdb_set_dhcpv6_client(g_state.link.bridge_name, false);
+            }
+        }
+        return;
+    }
+    else if (!g_state.connected) {
         LOGI("Device is not connected to the Cloud");
         return;
     }

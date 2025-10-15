@@ -109,7 +109,11 @@ save_service(rts_stream_t stream, void *user, const char *key,
              uint8_t type, uint16_t length, const void *value)
 {
     int64_t index;
-    struct dpi_conn *dpi = user;
+    struct net_md_stats_accumulator *acc;
+    struct dpi_conn *dpi;
+
+    acc = (struct net_md_stats_accumulator *)user;
+    dpi = acc->dpi;
     enum service_level level = service_none;
 
     __builtin_memcpy(&index, value, length);
@@ -137,7 +141,11 @@ save_tag(rts_stream_t stream, void *user, const char *key,
          uint8_t type, uint16_t length, const void *value)
 {
     int64_t i, index;
-    struct dpi_conn *dpi = user;
+    struct net_md_stats_accumulator *acc;
+    struct dpi_conn *dpi;
+
+    acc = (struct net_md_stats_accumulator *)user;
+    dpi = acc->dpi;
     __builtin_memcpy(&index, value, length);
 
     for (i = 0; i < NUM_TAGS; ++i)
@@ -259,7 +267,7 @@ notify_client(rts_stream_t stream, void *user, const char *key,
         save_tcp_ack_delay(stream, user, key, type, length, value);
         return;
     }
-    acc = user;
+    acc = (struct net_md_stats_accumulator *)user;
     dpi = acc->dpi;
 
     if (dpi->flow_action == FSM_DPI_DROP)

@@ -98,6 +98,9 @@ struct osw_conf_vif_ap {
     int ft_pmk_r0_key_lifetime_sec;
     int ft_pmk_r1_max_key_lifetime_sec;
     int ft_mobility_domain;
+    struct osw_rsn_override rsn_override_1;
+    struct osw_rsn_override rsn_override_2;
+    bool rsn_override_omit_rsnxe;
 };
 
 struct osw_conf_net {

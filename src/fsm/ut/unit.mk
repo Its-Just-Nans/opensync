@@ -68,7 +68,7 @@ UNIT_DEPS += src/lib/network_zone
 UNIT_DEPS += src/lib/dpi_intf
 UNIT_DEPS += src/lib/accel_evict_msg
 UNIT_DEPS += src/lib/nfe
-
+UNIT_DEPS += src/lib/rts
 ifeq ($(CONFIG_FSM_NO_DSO),y)
 	UNIT_DEPS += $(if $(CONFIG_LIB_LEGACY_FSM_HTTP_PARSER), src/lib/http_parse)
 	UNIT_DEPS += $(if $(CONFIG_LIB_LEGACY_FSM_DNS_PARSER), src/lib/dns_parse)

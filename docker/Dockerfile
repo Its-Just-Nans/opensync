@@ -144,12 +144,15 @@ RUN $PKGINSTALL clang-${LLVM_VERSION}
 RUN $PKGINSTALL clang-tidy-${LLVM_VERSION} bear jq
 RUN $PKGINSTALL clang-format-${LLVM_VERSION}
 
-# libcares
+# Install libcares
 # install a newer version which includes support for ares_getaddrinfo()
-WORKDIR /tmp
-RUN wget http://security.ubuntu.com/ubuntu/pool/main/c/c-ares/libc-ares2_1.18.1-1ubuntu0.22.04.3_amd64.deb
-RUN wget http://security.ubuntu.com/ubuntu/pool/main/c/c-ares/libc-ares-dev_1.18.1-1ubuntu0.22.04.3_amd64.deb
-RUN $PKGINSTALL ./libc-ares2_1.18.1-1ubuntu0.22.04.3_amd64.deb ./libc-ares-dev_1.18.1-1ubuntu0.22.04.3_amd64.deb
+WORKDIR /usr/src
+RUN wget https://github.com/c-ares/c-ares/releases/download/cares-1_18_1/c-ares-1.18.1.tar.gz
+RUN md5sum c-ares-1.18.1.tar.gz >> remote-c-ares.md5
+COPY c-ares.md5 local.md5
+RUN diff remote-c-ares.md5 local.md5
+RUN tar xzf c-ares-1.18.1.tar.gz && cd c-ares-1.18.1 \
+    && ./configure && make install
 
 # doxygen, latex
 RUN $PKGINSTALL doxygen

@@ -24,6 +24,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <curl/curl.h>
 #include <ev.h>
 
 #include "memutil.h"
@@ -42,6 +43,7 @@ struct est_request_ctx
     est_request_fn_t *er_fn;             /* Callback */
     void *er_fn_ctx;                     /* Callback context */
     struct est_request_status er_status; /* Status */
+    char er_curl_err[CURL_ERROR_SIZE];   /* CURL error buffer */
 };
 
 /* cURL multi socket callback */
@@ -98,6 +100,7 @@ bool est_request_curl_async(arena_t *arena, struct ev_loop *loop, CURL *c_req, e
     er->er_fn_ctx = fn_ctx;
     memset(&er->er_status, 0, sizeof(er->er_status));
     er->er_status.status = ER_STATUS_ERROR;
+    er->er_curl_err[0] = '\0';
 
     /*
      * cURL multi initialization: cURL multi is is the only way to have a custom
@@ -156,6 +159,14 @@ bool est_request_curl_async(arena_t *arena, struct ev_loop *loop, CURL *c_req, e
         return false;
     }
 
+    /*
+     * Use custom error buffer
+     */
+    if (curl_easy_setopt(c_req, CURLOPT_ERRORBUFFER, er->er_curl_err) != CURLE_OK)
+    {
+        LOG(ERR, "est: Error setting CURL error buffer.");
+        return false;
+    }
     /*
      * Patch the cURL easy handle with our own writer functions
      */
@@ -354,7 +365,10 @@ void est_request_process_msg(struct est_request_ctx *er)
 
         if (msg->data.result != CURLE_OK)
         {
-            LOG(DEBUG, "est_request: Easy socket failed with: %s", curl_easy_strerror(msg->data.result));
+            LOG(DEBUG,
+                "est_request: Easy socket failed with: %s: %s",
+                curl_easy_strerror(msg->data.result),
+                er->er_curl_err);
             er->er_status.status = ER_STATUS_ERROR;
             continue;
         }

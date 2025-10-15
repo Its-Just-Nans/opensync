@@ -86,7 +86,9 @@ static we_state_t we_state_from_coroutine(we_state_t s, const char *name, size_t
     we_get(s, 1);
     we_pushstr(s, WE_AGENT_SLEN(WE_AGENT_CORO_PRIV), WE_AGENT_CORO_PRIV);
     we_get(s, we_top(s) - 1);
-    assert(we_type(s, we_top(s)) == WE_ARR);
+    we_assert(we_type(s, we_top(s)) == WE_ARR);
+    if (!(we_type(s, we_top(s)) == WE_ARR)) return NULL;
+
     we_read(s, we_top(s), WE_ARR, &coroutine);
     we_pop(s); /* coroutine array */
     we_pop(s); /* coroutine struct */
@@ -98,6 +100,8 @@ static int coroutine_resume(we_state_t s, const char *func, size_t len, struct w
     we_state_t coroutine;
     /* Get the periodic thread and resume it */
     coroutine = we_state_from_coroutine(s, func, len);
+    if (IS_NULL_PTR(coroutine)) return EINVAL;
+
     return we_call(&coroutine, user);
 }
 
@@ -128,7 +132,9 @@ static int update_coroutine_resume(
     we_get(s, 1);
     we_pushstr(s, WE_AGENT_SLEN(WE_AGENT_CORO_PRIV), WE_AGENT_CORO_PRIV); /* Private member of the coroutine struct */
     we_get(s, we_top(s) - 1);
-    assert(we_type(s, we_top(s)) == WE_ARR);
+    we_assert(we_type(s, we_top(s)) == WE_ARR);
+    if (!(we_type(s, we_top(s)) == WE_ARR)) return -EINVAL;
+
     we_read(s, we_top(s), WE_ARR, &coroutine);
     /* coroutine array */
     we_pop(s);
@@ -162,7 +168,7 @@ static int mark_old_agent_obsolste(struct fsm_session *fsm, struct fsm_object *o
 static int update_agent(struct fsm_session *fsm, struct we_dpi_session *dpi, struct fsm_object *obj)
 {
     bool r;
-    char *version;
+    char *version = NULL;
     int res = -1;
     char binary_path[WE_AGENT_BIN_PATH_LEN] = {0};
     size_t pathlen;
@@ -189,6 +195,8 @@ static int update_agent(struct fsm_session *fsm, struct we_dpi_session *dpi, str
     FREE(version);
 err:
     fsm->ops.state_cb(fsm, obj);
+    LOGI("%s: %s:%s state is now %s", __func__, obj->object, obj->version,
+         obj->state == FSM_OBJ_ACTIVE ? "active" : "load failed");
     return res;
 }
 
@@ -313,6 +321,9 @@ static int bootstrap_agent(struct fsm_session *fsm)
     }
 cleanup:
     fsm->ops.state_cb(fsm, obj);
+    LOGI("%s: %s:%s state is now %s", __func__, obj->object, obj->version,
+         obj->state == FSM_OBJ_ACTIVE ? "active" : "load failed");
+
     free(obj);
     return res;
 }
@@ -340,6 +351,24 @@ static void we_dpi_agent_update(struct fsm_session *fsm, struct fsm_object *obj,
                 LOGE("%s: Failed to release the mutex (%d)", __func__, mutex_status);
                 exit(EXIT_SUCCESS);
             }
+            break;
+
+        case OVSDB_UPDATE_DEL:
+            mutex_status = pthread_mutex_lock(&dpi->lock);
+            if (mutex_status != 0)
+            {
+                LOGE("%s: Failed to acquire the mutex (%d)", __func__, mutex_status);
+                exit(EXIT_SUCCESS);
+            }
+            bootstrap_agent(fsm);
+            mutex_status = pthread_mutex_unlock(&dpi->lock);
+            if (mutex_status != 0)
+            {
+                LOGE("%s: Failed to release the mutex (%d)", __func__, mutex_status);
+                exit(EXIT_SUCCESS);
+            }
+            break;
+
         default:
             break;
     }
@@ -388,6 +417,7 @@ static int set_agent_config(
     int err;
     we_state_t coroutine;
     coroutine = we_state_from_coroutine(agent, WE_AGENT_CORO_CONFIG_UPDATE, WE_AGENT_SLEN(WE_AGENT_CORO_CONFIG_UPDATE));
+    if (IS_NULL_PTR(coroutine)) return EINVAL;
 
     int reg = we_pushtab(coroutine, NULL);
 

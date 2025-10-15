@@ -93,6 +93,7 @@ static inline dpp_survey_record_t * dpp_survey_record_alloc()
 static inline void dpp_survey_record_free(dpp_survey_record_t *record)
 {
     if (NULL != record) {
+        FREE(record->info.puncture);
         FREE(record);
     }
 }

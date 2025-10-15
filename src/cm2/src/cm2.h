@@ -242,7 +242,6 @@ typedef struct
     int                stability_cnts;
     ev_child           stability_child;
     cm2_main_link_t    link;
-    cm2_main_link_t    old_link;
     bool               ntp_check;
     struct ev_loop     *loop;
 #ifdef CONFIG_LIBEVX_USE_CARES

@@ -110,9 +110,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * be patched to perform this internally.
  */
 
-#define OW_L2UF_KICK_DEAUTH_EXPIRE_SEC 5
-#define OW_L2UF_KICK_DELETE_EXPIRE_SEC 5
-#define OW_L2UF_KICK_WORK_SEC 3
+#define OW_L2UF_KICK_DEAUTH_EXPIRE_SEC 2
+#define OW_L2UF_KICK_DELETE_EXPIRE_SEC 2
+#define OW_L2UF_KICK_WORK_SEC 1
 
 #define LOG_PREFIX(fmt, ...) \
     "ow: l2uf: " fmt, \

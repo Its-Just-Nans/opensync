@@ -223,6 +223,15 @@ struct osw_drv_vif_config_ap {
 
     int max_sta;
     bool max_sta_changed;
+
+    struct osw_rsn_override rsn_override_1;
+    bool rsn_override_1_changed;
+
+    struct osw_rsn_override rsn_override_2;
+    bool rsn_override_2_changed;
+
+    bool rsn_override_omit_rsnxe;
+    bool rsn_override_omit_rsnxe_changed;
 };
 
 struct osw_drv_vif_sta_network {
@@ -312,6 +321,9 @@ struct osw_drv_vif_state_ap {
     bool oce_min_rssi_enable;
     int oce_retry_delay_sec;
     int max_sta;
+    struct osw_rsn_override rsn_override_1;
+    struct osw_rsn_override rsn_override_2;
+    bool rsn_override_omit_rsnxe;
 };
 
 struct osw_drv_vif_state_ap_vlan {
@@ -415,6 +427,7 @@ struct osw_drv_phy_state {
     struct osw_channel radar_next_channel;
     enum osw_radar_detect radar;
     bool puncture_supported;
+    bool rsno_supported;
 };
 
 struct osw_drv_sta_state {

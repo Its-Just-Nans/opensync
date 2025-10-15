@@ -158,6 +158,14 @@ struct osw_hostap_conf_ap_config {
     OSW_HOSTAP_CONF_DECL_BOOL(bss_transition);
     /* Radio measurements / location */
     OSW_HOSTAP_CONF_DECL_BOOL(rrm_neighbor_report);
+    /* WFA WPA3 RSNO */
+    OSW_HOSTAP_CONF_DECL_STR (rsn_override_key_mgmt, 256);
+    OSW_HOSTAP_CONF_DECL_STR (rsn_override_pairwise, 256);
+    OSW_HOSTAP_CONF_DECL_INT (rsn_override_mfp);
+    OSW_HOSTAP_CONF_DECL_STR (rsn_override_key_mgmt_2, 256);
+    OSW_HOSTAP_CONF_DECL_STR (rsn_override_pairwise_2, 256);
+    OSW_HOSTAP_CONF_DECL_INT (rsn_override_mfp_2);
+    OSW_HOSTAP_CONF_DECL_BOOL(rsn_override_omit_rsnxe);
 
     char conf_buf[4096];
     char psks_buf[4096];

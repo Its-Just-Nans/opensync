@@ -43,7 +43,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define rts_assert_msg(cond, msg, ...) (void)(cond); (void)msg
 #define rts_printf(...)
 #else
-#ifdef NDEBUG
+#if defined (CONFIG_LIB_RTS_RELEASE_BUILD)
 #define rts_assert(cond) (void)(cond)
 #define rts_assert_msg(cond, msg, ...) (void)(cond); (void)msg
 #define rts_printf(...) \

@@ -17,3 +17,59 @@ menuconfig MANAGER_OWM
             Opensync Wireless Manager / One Wifi Manager
             startup configuration for DM. This provides the
             base parameters for daemon process supervision.
+
+    choice
+        prompt "Select RSNO (RSN Override) mode"
+        depends on MANAGER_OWM
+        default OW_CORE_RSNO_WPA3_COMPAT_TRANSITION
+
+            config OW_CORE_RSNO_NONE
+                bool "No RSNO support"
+                help
+                    No RSNO support is compiled in.
+
+            config OW_CORE_RSNO_WPA3_COMPAT
+                bool "WPA3 compatibility mode"
+                help
+                    RSNO support is compiled in with WPA3 compatibility mode.
+                    This will automatically remove non-PSK AKMs from RSNE and
+                    move them to RSNO1 and RSNO2 as per WFA WPA spec.
+
+                    This is the most conservative option. It will result in
+                    downgrading older WPA3 clients to use PSK instead of SAE
+                    when connecting to AP where RSNO is enabled.
+
+                    This is intended mostly for Wi-Fi 7 platforms for
+                    interoperability purposes.
+
+                    Keep in mind this will have an effect on WPA3-Personal
+                    Transition non-Wi-Fi 7 platforms too as it will move SAE to
+                    RSNO1, and keep PSK in RSNE only.
+
+            config OW_CORE_RSNO_WPA3_COMPAT_TRANSITION
+                bool "WPA3 compatibility transition mode"
+                help
+                    Just like OW_CORE_RSNO_WPA3_COMPAT except RSNE is allowed
+                    to contain PSK+SAE AKMs to avoid degrading security
+                    properties for WPA3 devices that aren't RSNO aware.
+
+                    This is least conservative option compared to
+                    OW_CORE_RSNO_WPA3_COMPAT as it should not result in WPA3
+                    clients being downgraded to WPA2.
+
+                    This doesn't fulfill the WFA WPA spec's definition of WPA3
+                    Compatibility Mode though, but complies with RSNO itself.
+
+            config OW_CORE_RSNO_WPA3_COMPAT_WIFI7_ONLY
+                bool "WPA3 compatibility mode for WiFi7 only"
+                help
+                    Just like OW_CORE_RSNO_WPA3_COMPAT except the split is done
+                    only if RSNE AKM is intended to include SAE-EXT.
+
+                    This is a middle-ground option between
+                    OW_CORE_RSNO_WPA3_COMPAT and
+                    OW_CORE_RSNO_WPA3_COMPAT_TRANSITION. It applies the
+                    transformation only on Wi-Fi 7 APs where SAE-EXT is
+                    required for EHT+MLO. APs that have no SAE-EXT will not
+                    have their real RSNE changed.
+    endchoice

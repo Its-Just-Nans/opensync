@@ -43,6 +43,13 @@ typedef enum
     WE_ARR
 } we_type_t;
 
+#if defined(CONFIG_WE_RELEASE_BUILD)
+#define we_assert(expr) ((void)0)
+#else
+#include <assert.h>
+#define we_assert assert
+#endif
+
 typedef struct we_arr *we_state_t;
 
 /* we_create() - Allocate state */

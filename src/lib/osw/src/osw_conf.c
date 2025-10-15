@@ -185,6 +185,9 @@ osw_conf_build_vif_cb(const struct osw_state_vif_info *info,
             vif->u.ap.oce_min_rssi_dbm = info->drv_state->u.ap.oce_min_rssi_dbm;
             vif->u.ap.oce_retry_delay_sec = info->drv_state->u.ap.oce_retry_delay_sec;
             vif->u.ap.max_sta = info->drv_state->u.ap.max_sta;
+            vif->u.ap.rsn_override_1 = info->drv_state->u.ap.rsn_override_1;
+            vif->u.ap.rsn_override_2 = info->drv_state->u.ap.rsn_override_2;
+            vif->u.ap.rsn_override_omit_rsnxe = info->drv_state->u.ap.rsn_override_omit_rsnxe;
             break;
         case OSW_VIF_AP_VLAN:
             break;

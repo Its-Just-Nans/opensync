@@ -62,7 +62,7 @@ osw_tlv_policy_ok(const struct osw_tlv_hdr *hdr,
     static const size_t sizes[] = {
         //[OSW_TLV_S8] = sizeof(int8_t),
         [OSW_TLV_U32] = sizeof(uint32_t),
-        //[OSW_TLV_U64] = sizeof(uint64_t),
+        [OSW_TLV_U64] = sizeof(uint64_t),
         [OSW_TLV_FLOAT] = sizeof(float),
         [OSW_TLV_HWADDR] = 6,
     };
@@ -77,6 +77,7 @@ osw_tlv_policy_ok(const struct osw_tlv_hdr *hdr,
     switch (type) {
         case OSW_TLV_HWADDR: /* fall-through */
         case OSW_TLV_U32: /* fall-through */
+        case OSW_TLV_U64: /* fall-through */
         case OSW_TLV_FLOAT:
             return hdr->len == sizes[type];
         case OSW_TLV_STRING: /* fall-through */
@@ -189,5 +190,6 @@ osw_tlv_find(const void *data,
     }
     return NULL;
 }
+
 
 #include "osw_tlv_ut.c.h"

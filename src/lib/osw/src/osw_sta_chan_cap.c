@@ -68,6 +68,7 @@ enum osw_sta_chan_cap_sta_chan_flag {
 #define BIT(x) (1 << (x))
 #define OSW_STA_CHAN_CAP_STA_AGEOUT_UNKNOWN_SEC (10 * 60) /* 10 minutes */
 #define OSW_STA_CHAN_CAP_STA_AGEOUT_KNOWN_SEC (60 * 60 * 24 * 7) /* 1 week */
+#define OSW_STA_CHAN_CAP_STA_MAX_ENTRIES 1024
 
 struct osw_sta_chan_cap_sta_chan {
     struct ds_tree_node node;
@@ -84,6 +85,7 @@ struct osw_sta_chan_cap_sta_link {
 
 struct osw_sta_chan_cap_sta {
     struct ds_tree_node node;
+    struct ds_dlist_node lru_node;
     struct osw_sta_chan_cap *m;
     struct osw_hwaddr addr;
     struct ds_tree chans;
@@ -104,6 +106,7 @@ struct osw_sta_chan_cap_obs {
 struct osw_sta_chan_cap {
     struct ds_tree stas;
     struct ds_tree obs;
+    struct ds_dlist stas_lru; /* head is least recently used, tail is most recently used */
     struct osw_state_observer state_obs;
     osw_sta_assoc_observer_t *sta_obs;
 };
@@ -262,11 +265,28 @@ osw_sta_chan_cap_sta_free_chans(struct osw_sta_chan_cap_sta *sta)
 }
 
 static void
+osw_sta_chan_cap_sta_free_links(struct osw_sta_chan_cap_sta *sta)
+{
+    struct osw_sta_chan_cap_sta_link *l;
+    WARN_ON(ds_tree_is_empty(&sta->links) == false);
+    while ((l = ds_tree_remove_head(&sta->links)) != NULL) {
+        FREE(l);
+    }
+}
+
+static void
 osw_sta_chan_cap_sta_free(struct osw_sta_chan_cap_sta *sta)
 {
     LOGT(LOG_PREFIX_STA(sta, "freeing"));
+    osw_timer_disarm(&sta->ageout);
     ds_tree_remove(&sta->m->stas, sta);
+    ds_dlist_remove(&sta->m->stas_lru, sta);
     osw_sta_chan_cap_sta_free_chans(sta);
+    /* It is unexpected to have links at this point, but if it happens,
+     * better to warn and free memory rather than crash or leak memory.
+     */
+    WARN_ON(ds_tree_is_empty(&sta->links) == false);
+    osw_sta_chan_cap_sta_free_links(sta);
     FREE(sta);
 }
 
@@ -276,6 +296,58 @@ osw_sta_chan_cap_sta_ageout_cb(struct osw_timer *t)
     struct osw_sta_chan_cap_sta *sta = container_of(t, struct osw_sta_chan_cap_sta, ageout);
     LOGT(LOG_PREFIX_STA(sta, "aged out"));
     osw_sta_chan_cap_sta_free(sta);
+}
+
+static void
+osw_sta_chan_cap_sta_evict_lru(struct osw_sta_chan_cap *m)
+{
+    struct osw_sta_chan_cap_sta *sta;
+    struct osw_sta_chan_cap_sta *tmp;
+
+    /* First attempt at pruning entries that refer to stations that were never
+     * seen connect to the host AP.
+     *
+     * This typically addresses mac address randomized scans or devices that
+     * don't even want to connect to the host AP.
+     */
+    ds_dlist_foreach_safe(&m->stas_lru, sta, tmp) {
+        if (ds_dlist_len(&m->stas_lru) <= OSW_STA_CHAN_CAP_STA_MAX_ENTRIES) {
+            break;
+        }
+
+        if (sta->known == false) {
+            LOGT(LOG_PREFIX_STA(sta, "evicting lru (unknown)"));
+            osw_sta_chan_cap_sta_free(sta);
+        }
+    }
+
+    /* The second pass tries harder to get rid of stations, including the ones
+     * that connected at least once, but once that aren't connected at this
+     * time.
+     *
+     * This is often times going to do nothing because majority of entries is
+     * expected to be the unknown station case.
+     *
+     * For the remaining ones it'll still remove only the oldest ones and keep
+     * the most recent ones.
+     *
+     * This also is intended to leave the currently connected stations. The
+     * number of these is going to be hard limited by the platform's WLAN
+     * driver and in many cases will be limited much earlier than the
+     * OSW_STA_CHAN_CAP_STA_MAX_ENTRIES. And then even if WLAN driver is
+     * capable of handling more, it's fine. In practice this won't ever be more
+     * than a hundred at least for the foreseeable future.
+     */
+    ds_dlist_foreach_safe(&m->stas_lru, sta, tmp) {
+        if (ds_dlist_len(&m->stas_lru) <= OSW_STA_CHAN_CAP_STA_MAX_ENTRIES) {
+            break;
+        }
+
+        if (sta->connected == false) {
+            LOGT(LOG_PREFIX_STA(sta, "evicting lru (known, but not connected)"));
+            osw_sta_chan_cap_sta_free(sta);
+        }
+    }
 }
 
 static void
@@ -304,12 +376,18 @@ osw_sta_chan_cap_sta_get_or_alloc(struct osw_sta_chan_cap *m,
         sta = CALLOC(1, sizeof(*sta));
         sta->m = m;
         sta->addr = *addr;
+        ds_dlist_insert_tail(&m->stas_lru, sta);
         ds_tree_insert(&m->stas, sta, &sta->addr);
         ds_tree_init(&sta->chans, ds_int_cmp, struct osw_sta_chan_cap_sta_chan, node);
         ds_tree_init(&sta->links, ds_void_cmp, struct osw_sta_chan_cap_sta_link, node);
         osw_timer_init(&sta->ageout, osw_sta_chan_cap_sta_ageout_cb);
         osw_sta_chan_cap_sta_gc(sta);
         LOGT(LOG_PREFIX_STA(sta, "allocated"));
+        osw_sta_chan_cap_sta_evict_lru(m);
+    }
+    else {
+        ds_dlist_remove(&m->stas_lru, sta);
+        ds_dlist_insert_tail(&m->stas_lru, sta);
     }
     return sta;
 }
@@ -509,6 +587,7 @@ osw_sta_chan_cap_init(struct osw_sta_chan_cap *m)
     m->state_obs = state_obs;
     ds_tree_init(&m->stas, (ds_key_cmp_t *)osw_hwaddr_cmp, struct osw_sta_chan_cap_sta, node);
     ds_tree_init(&m->obs, ds_void_cmp, struct osw_sta_chan_cap_obs, node);
+    ds_dlist_init(&m->stas_lru, struct osw_sta_chan_cap_sta, lru_node);
 }
 
 static void

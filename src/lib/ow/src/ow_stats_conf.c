@@ -929,8 +929,8 @@ ow_stats_conf_sub_report_sta(struct ow_stats_conf_entry *e,
     memcpy(r->info.mac, &id.addr.octet, 6);
     memcpy(r->info.mld_addr, &sta->mld_addr.octet, 6);
 
-    const struct osw_tlv_hdr *tx_bytes = tb[OSW_STATS_STA_TX_BYTES];
-    const struct osw_tlv_hdr *rx_bytes = tb[OSW_STATS_STA_RX_BYTES];
+    const struct osw_tlv_hdr *tx_bytes_64 = tb[OSW_STATS_STA_TX_BYTES_64];
+    const struct osw_tlv_hdr *rx_bytes_64 = tb[OSW_STATS_STA_RX_BYTES_64];
     const struct osw_tlv_hdr *tx_frames = tb[OSW_STATS_STA_TX_FRAMES];
     const struct osw_tlv_hdr *rx_frames = tb[OSW_STATS_STA_RX_FRAMES];
     const struct osw_tlv_hdr *tx_retries = tb[OSW_STATS_STA_TX_RETRIES];
@@ -941,8 +941,8 @@ ow_stats_conf_sub_report_sta(struct ow_stats_conf_entry *e,
     const struct osw_tlv_hdr *rx_rate = tb[OSW_STATS_STA_RX_RATE_MBPS];
     const struct osw_tlv_hdr *snr = tb[OSW_STATS_STA_SNR_DB];
 
-    if (tx_bytes) r->stats.bytes_tx = osw_tlv_get_u32(tx_bytes);
-    if (rx_bytes) r->stats.bytes_rx = osw_tlv_get_u32(rx_bytes);
+    if (tx_bytes_64) r->stats.bytes_tx = osw_tlv_get_u64(tx_bytes_64);
+    if (rx_bytes_64) r->stats.bytes_rx = osw_tlv_get_u64(rx_bytes_64);
     if (tx_frames) r->stats.frames_tx = osw_tlv_get_u32(tx_frames);
     if (rx_frames) r->stats.frames_rx = osw_tlv_get_u32(rx_frames);
     if (tx_retries) r->stats.retries_tx = osw_tlv_get_u32(tx_retries);
@@ -1709,21 +1709,22 @@ ow_stats_conf_device_polling(struct ow_stats_conf_entry *e,
 
         thermal_record->radio_txchainmasks[radio_idx].type = radio_type;
         thermal_record->radio_txchainmasks[radio_idx].value = tx_chainmask;
-        thermal_record->txchainmask_qty = radio_idx;
-        thermal_record->fan_rpm = -1;
-        thermal_record->fan_duty_cycle = -1;
-        thermal_record->thermal_state = -1;
-        thermal_record->target_rpm = -1;
-        for (int i = 0; i < DPP_DEVICE_LED_COUNT; i++) {
-            thermal_record->led_states[i].value = -1;
-        }
-        thermal_record->timestamp_ms = real_msec;
 
         LOGD("ow: stats: device: sample: radio=%s tx_chainmask=0x%04x",
              ow_stats_conf_radio_type_to_str(ow_stats_conf_dpp_to_radio_type(radio_type)), tx_chainmask);
 
         radio_idx++;
     }
+
+    thermal_record->txchainmask_qty = radio_idx;
+    thermal_record->fan_rpm = -1;
+    thermal_record->fan_duty_cycle = -1;
+    thermal_record->thermal_state = -1;
+    thermal_record->target_rpm = -1;
+    for (int i = 0; i < DPP_DEVICE_LED_COUNT; i++) {
+        thermal_record->led_states[i].value = -1;
+    }
+    thermal_record->timestamp_ms = real_msec;
 
     ds_dlist_insert_tail(&e->thermal_records, thermal_record);
     e->last_sub_reported_at = now;
@@ -1884,6 +1885,7 @@ void
 ow_stats_conf_entry_reset(struct ow_stats_conf_entry *e)
 {
     osw_timer_arm_at_nsec(&e->conf->work, 0);
+    FREE(e->params_next.channels);
     memset(&e->params_next, 0, sizeof(e->params_next));
 }
 

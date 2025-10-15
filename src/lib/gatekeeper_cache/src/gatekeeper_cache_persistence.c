@@ -369,7 +369,7 @@ static bool gk_process_fqdn_redirect(
         struct attr_cache *attr_entry,
         Gatekeeper__Southbound__V1__GatekeeperFqdnReply *fqdn_reply)
 {
-    if (attr_entry->fqdn_redirect == NULL) return true;
+    if (IS_NULL_PTR(attr_entry->fqdn_redirect)) return true;
 
     Gatekeeper__Southbound__V1__GatekeeperFqdnRedirectReply *redirect;
     redirect = CALLOC(1, sizeof(*redirect));
